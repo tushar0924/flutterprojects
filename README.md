@@ -1,4 +1,4 @@
-# flutterprojects
+# partnerapp
 
 A new Flutter project.
 
