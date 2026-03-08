@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../routes/app_router.dart';
+import '../../providers/auth_provider.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final TextEditingController _phoneController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
     return Scaffold(
       backgroundColor: const Color(0xFF2C2C2C),
       body: Column(
@@ -63,10 +66,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   topRight: Radius.circular(28),
                 ),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+              child: SingleChildScrollView(
+                padding: EdgeInsets.only(
+                  left: 24,
+                  right: 24,
+                  top: 32,
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   const Text(
                     'Login to your account',
                     style: TextStyle(
@@ -156,9 +165,26 @@ class _LoginScreenState extends State<LoginScreen> {
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(context).pushNamed(AppRouter.otp);
-                      },
+                      onPressed: authState.isLoading
+                          ? null
+                          : () async {
+                              final phone = _phoneController.text.trim();
+                              if (phone.length != 10) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Enter a valid 10-digit phone number')),
+                                );
+                                return;
+                              }
+
+                              final resp = await ref.read(authProvider.notifier).sendOtp(phone);
+                              if (resp.success == true) {
+                                Navigator.of(context).pushNamed(AppRouter.otp, arguments: resp.phone);
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(resp.message ?? 'Failed to request OTP')),
+                                );
+                              }
+                            },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF7AAAB5),
                         shape: RoundedRectangleBorder(
@@ -166,14 +192,16 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         elevation: 0,
                       ),
-                      child: const Text(
-                        'Send OTP',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                      child: authState.isLoading
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : const Text(
+                              'Send OTP',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                     ),
                   ),
 
@@ -195,6 +223,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ],
+                ),
               ),
             ),
           ),

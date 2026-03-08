@@ -1,15 +1,19 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../routes/app_router.dart';
+import '../../providers/auth_provider.dart';
 
-class OtpScreen extends StatefulWidget {
-  const OtpScreen({super.key});
+class OtpScreen extends ConsumerStatefulWidget {
+  final String? phone;
+
+  const OtpScreen({super.key, this.phone});
 
   @override
-  State<OtpScreen> createState() => _OtpScreenState();
+  ConsumerState<OtpScreen> createState() => _OtpScreenState();
 }
 
-class _OtpScreenState extends State<OtpScreen> {
+class _OtpScreenState extends ConsumerState<OtpScreen> {
   final List<TextEditingController> _controllers =
   List.generate(4, (_) => TextEditingController());
   final List<FocusNode> _focusNodes =
@@ -54,8 +58,16 @@ class _OtpScreenState extends State<OtpScreen> {
     super.dispose();
   }
 
+  Future<void> _showToast(String msg) async {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
     return Scaffold(
       backgroundColor: const Color(0xFF2C2C2C),
       resizeToAvoidBottomInset: true,
@@ -148,9 +160,9 @@ class _OtpScreenState extends State<OtpScreen> {
 
                       const SizedBox(height: 2),
 
-                      const Text(
-                        "+91 9549471019",
-                        style: TextStyle(
+                      Text(
+                        widget.phone != null ? '+91 ${widget.phone}' : '+91',
+                        style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: Color(0xFF5C6BC0),
@@ -245,23 +257,45 @@ class _OtpScreenState extends State<OtpScreen> {
                         width: double.infinity,
                         height: 52,
                         child: ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.of(context).pushNamed(AppRouter.language);
-                          },
+                          onPressed: authState.isLoading
+                              ? null
+                              : () async {
+                                  final phone = widget.phone;
+                                  if (phone == null) {
+                                    _showToast('Phone number missing');
+                                    return;
+                                  }
+
+                                  final otp = _controllers.map((c) => c.text).join();
+                                  if (otp.length < 4) {
+                                    _showToast('Enter the complete OTP');
+                                    return;
+                                  }
+
+                                  final resp = await ref.read(authProvider.notifier).verifyOtp(phone, otp, helper: true);
+                                  if (!context.mounted) return;
+                                  if (resp.success) {
+                                    _showToast(resp.message);
+                                    Navigator.of(context).pushNamed(AppRouter.language);
+                                  } else {
+                                    _showToast(resp.message);
+                                  }
+                                },
                           icon: const Icon(
                             Icons.verified_outlined,
                             size: 18,
                             color: Colors.white,
                           ),
-                          label: const Text(
-                            "Verify & Login",
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight:
-                              FontWeight.w500,
-                              color: Colors.white
-                            ),
-                          ),
+                          label: authState.isLoading
+                              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                              : const Text(
+                                  "Verify & Login",
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.white,
+                                  ),
+                                ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor:
                             const Color(0xFF7FA6B5),

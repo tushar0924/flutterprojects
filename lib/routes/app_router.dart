@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 import '../screens/onboarding/step2_basic_info.dart';
 import '../screens/onboarding/step3_kyc_upload.dart';
+import '../screens/onboarding/step4_add_bank.dart';
+import '../screens/onboarding/step5_verification_pending.dart';
 import '../screens/splash/splash_screen.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/signup_screen.dart';
@@ -16,6 +18,8 @@ class AppRouter {
   static const String signup = '/signup';
   static const String onboardingStep2 = '/onboarding/step2';
   static const String onboardingStep3 = '/onboarding/step3';
+  static const String onboardingStep4 = '/onboarding/step4';
+  static const String onboardingStep5 = '/onboarding/step5';
   static const String otp = '/otp';
   static const String language = '/language';
   static const String home = '/home';
@@ -24,11 +28,18 @@ class AppRouter {
       splash: (_) => const SplashScreen(),
       login: (_) => const LoginScreen(),
         signup: (_) => const SignupScreen(),
-        otp: (_) => const OtpScreen(),
+        otp: (ctx) {
+          final args = ModalRoute.of(ctx)!.settings.arguments;
+          final phone = args is String ? args : null;
+          return OtpScreen(phone: phone);
+        },
         language: (_) => const LanguageScreen(),
         chooseRole: (_) => const ChooseRoleScreen(),
         onboardingStep2: (_) => const OnboardingStep2(),
         onboardingStep3: (_) => const OnboardingStep3(),
-        home: (_) => const HelperrHome(),
+        onboardingStep4: (_) => const OnboardingStep4(),
+        onboardingStep5: (_) => const OnboardingStep5(),
+        home: (_) => HelperrHome(
+        ),
       };
 }

@@ -1,11 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../routes/app_router.dart';
+import '../../providers/auth_provider.dart';
 
-class SignupScreen extends StatelessWidget {
+class SignupScreen extends ConsumerStatefulWidget {
   const SignupScreen({super.key});
 
   @override
+  ConsumerState<SignupScreen> createState() => _SignupScreenState();
+}
+
+class _SignupScreenState extends ConsumerState<SignupScreen> {
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
     return Scaffold(
       backgroundColor: const Color(0xFF2C2C2C),
       resizeToAvoidBottomInset: true,
@@ -111,6 +129,7 @@ class SignupScreen extends StatelessWidget {
 
                       /// FULL NAME FIELD
                       TextField(
+                        controller: _nameController,
                         decoration: InputDecoration(
                           hintText: "Enter your full name",
                           hintStyle: const TextStyle(
@@ -149,7 +168,9 @@ class SignupScreen extends StatelessWidget {
 
                       /// PHONE FIELD
                       TextField(
+                        controller: _phoneController,
                         keyboardType: TextInputType.phone,
+                        maxLength: 10,
                         decoration: InputDecoration(
                           hintText:
                           "Enter 10 digit mobile number",
@@ -157,6 +178,7 @@ class SignupScreen extends StatelessWidget {
                             fontSize: 13,
                             color: Colors.black45,
                           ),
+                          counterText: "",
                           prefixIcon: Container(
                             width: 70,
                             alignment: Alignment.center,
@@ -197,7 +219,35 @@ class SignupScreen extends StatelessWidget {
                         width: double.infinity,
                         height: 52,
                         child: ElevatedButton(
-                          onPressed: () {},
+                          onPressed: authState.isLoading
+                              ? null
+                              : () async {
+                                  final phone = _phoneController.text.trim();
+                                  if (phone.length != 10) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Enter a valid 10-digit phone number'),
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  final resp = await ref.read(authProvider.notifier).sendSignupOtp(phone);
+                                  if (!mounted) return;
+
+                                  if (resp.success == true) {
+                                    Navigator.of(context).pushNamed(
+                                      AppRouter.otp,
+                                      arguments: phone,
+                                    );
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(resp.message ?? 'Failed to request OTP'),
+                                      ),
+                                    );
+                                  }
+                                },
                           style: ElevatedButton.styleFrom(
                             backgroundColor:
                             const Color(0xFF7FA6B5),
@@ -208,15 +258,24 @@ class SignupScreen extends StatelessWidget {
                               BorderRadius.circular(12),
                             ),
                           ),
-                          child: const Text(
-                            "Send OTP",
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight:
-                              FontWeight.w500,
-                              color: Colors.white,
-                            ),
-                          ),
+                          child: authState.isLoading
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text(
+                                  "Send OTP",
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight:
+                                    FontWeight.w500,
+                                    color: Colors.white,
+                                  ),
+                                ),
                         ),
                       ),
 

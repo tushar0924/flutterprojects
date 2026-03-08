@@ -1,204 +1,167 @@
 import 'package:flutter/material.dart';
 
-class HelperrHome extends StatelessWidget {
+import 'home/booking_alert.dart';
+import 'home/home_side_drawer.dart';
+import 'home/job_details_screen.dart';
+import 'home/tabs/earnings_tab_content.dart';
+import 'home/tabs/home_tab_content.dart';
+import 'home/tabs/jobs_tab_content.dart';
+
+class HelperrHome extends StatefulWidget {
   const HelperrHome({super.key});
 
   @override
+  State<HelperrHome> createState() => _HelperrHomeState();
+}
+
+class _HelperrHomeState extends State<HelperrHome> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  int _currentIndex = 0;
+
+  Future<void> _showBookingAlert() async {
+    final res = await showDialog(context: context, builder: (_) => const BookingAlert());
+    if (res == 'accepted' && mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const JobDetailsScreen()),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
     return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildTopRow(),
-              const SizedBox(height: 20),
-              _buildHeroCard(size, context),
-              const SizedBox(height: 18),
-              _buildSearchBar(),
-              const SizedBox(height: 16),
-              _buildCategories(),
-              const SizedBox(height: 18),
-              _buildSectionTitle('Popular helpers'),
-              const SizedBox(height: 12),
-              _buildServiceList(),
-            ],
-          ),
-        ),
-      ),
-      bottomNavigationBar: _buildBottomNav(),
-    );
-  }
-
-  Widget _buildTopRow() {
-    return Row(
-      children: [
-        CircleAvatar(
-          radius: 26,
-          backgroundColor: Colors.indigo.shade100,
-          child: const Icon(Icons.person, color: Colors.indigo, size: 28),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              Text('Good morning,', style: TextStyle(fontSize: 14, color: Colors.black54)),
-              SizedBox(height: 2),
-              Text('Alex Johnson', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-        IconButton(onPressed: () {}, icon: const Icon(Icons.notifications_outlined)),
-      ],
-    );
-  }
-
-  Widget _buildHeroCard(Size size, BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: const LinearGradient(colors: [Color(0xFF5B6CFF), Color(0xFF8EA2FF)]),
-        boxShadow: [BoxShadow(color: Colors.indigo.withOpacity(0.12), blurRadius: 12, offset: const Offset(0, 6))],
-      ),
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      key: _scaffoldKey,
+      backgroundColor: const Color(0xFFF3F5F8),
+      drawer: const HomeSideDrawer(),
+      body: IndexedStack(
+        index: _currentIndex,
         children: [
-          const Text('Find a helper', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          const Text('Trusted professionals near you', style: TextStyle(color: Colors.white70, fontSize: 14)),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.indigo, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                onPressed: () {},
-                icon: const Icon(Icons.search),
-                label: const Text('Search'),
-              ),
-              const SizedBox(width: 12),
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white24), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                onPressed: () {},
-                child: const Text('Categories'),
-              ),
-            ],
-          )
+          HomeTabContent(
+            onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+            onNotificationTap: _showBookingAlert,
+          ),
+          const JobsTabContent(),
+          const EarningsTabContent(),
         ],
       ),
-    );
-  }
-
-  Widget _buildSearchBar() {
-    return Material(
-      elevation: 2,
-      borderRadius: BorderRadius.circular(12),
-      child: TextField(
-        decoration: InputDecoration(
-          prefixIcon: const Icon(Icons.search),
-          hintText: 'Search for services or helpers',
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-          contentPadding: const EdgeInsets.symmetric(vertical: 14),
-        ),
+      bottomNavigationBar: _HomeBottomNav(
+        currentIndex: _currentIndex,
+        onChanged: (index) => setState(() => _currentIndex = index),
       ),
     );
   }
+}
 
-  Widget _buildCategories() {
-    final categories = ['Plumbing', 'Cleaning', 'Electric', 'Painting', 'Moving'];
-    return SizedBox(
-      height: 46,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: categories.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (context, index) {
-          return Chip(
-            label: Text(categories[index]),
-            backgroundColor: Colors.indigo.shade50,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          );
-        },
-      ),
-    );
-  }
+class _HomeBottomNav extends StatelessWidget {
+  const _HomeBottomNav({
+    required this.currentIndex,
+    required this.onChanged,
+  });
 
-  Widget _buildSectionTitle(String title) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-        TextButton(onPressed: () {}, child: const Text('See all'))
-      ],
-    );
-  }
+  final int currentIndex;
+  final ValueChanged<int> onChanged;
 
-  Widget _buildServiceList() {
-    final items = List.generate(4, (i) => i);
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 0.86),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        return _serviceCard(index);
-      },
-    );
-  }
-
-  Widget _serviceCard(int index) {
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 4))],
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            height: 96,
-            decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(10)),
-            child: Center(child: Icon(Icons.handyman, size: 42, color: Colors.indigo.shade300)),
+        border: Border(top: BorderSide(color: Color(0xFFE4E7EC))),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 8,
+            offset: Offset(0, -2),
           ),
-          const SizedBox(height: 8),
-          const Text('Home Repair', style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 6),
-          Row(
-            children: const [
-              Icon(Icons.star, size: 14, color: Colors.amber),
-              SizedBox(width: 6),
-              Text('4.8 (120)', style: TextStyle(fontSize: 12, color: Colors.black54)),
-            ],
-          ),
-          const Spacer(),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('\$25/hr', style: TextStyle(fontWeight: FontWeight.bold)),
-              ElevatedButton(onPressed: () {}, style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))), child: const Text('Book'))
-            ],
-          )
         ],
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            _NavItem(
+              index: 0,
+              currentIndex: currentIndex,
+              icon: Icons.home_outlined,
+              label: 'Home',
+              onTap: onChanged,
+            ),
+            _NavItem(
+              index: 1,
+              currentIndex: currentIndex,
+              icon: Icons.work_outline,
+              label: 'Jobs',
+              onTap: onChanged,
+            ),
+            _NavItem(
+              index: 2,
+              currentIndex: currentIndex,
+              icon: Icons.account_balance_wallet_outlined,
+              label: 'Earnings',
+              onTap: onChanged,
+            ),
+          ],
+        ),
       ),
     );
   }
+}
 
-  Widget _buildBottomNav() {
-    return BottomNavigationBar(
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'Home'),
-        BottomNavigationBarItem(icon: Icon(Icons.message_outlined), label: 'Messages'),
-        BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
-      ],
-      currentIndex: 0,
-      selectedItemColor: Colors.indigo,
-      onTap: (_) {},
+class _NavItem extends StatelessWidget {
+  const _NavItem({
+    required this.index,
+    required this.currentIndex,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final int index;
+  final int currentIndex;
+  final IconData icon;
+  final String label;
+  final ValueChanged<int> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool active = index == currentIndex;
+
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => onTap(index),
+        child: SizedBox(
+          height: 50,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 27,
+                height: 27,
+                decoration: BoxDecoration(
+                  color: active ? const Color(0xFF10AFC0) : Colors.transparent,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  icon,
+                  size: 17,
+                  color: active ? Colors.white : const Color(0xFF344054),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: active ? const Color(0xFF101828) : const Color(0xFF667085),
+                  fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -19,7 +19,7 @@ class _OnboardingStep3State extends State<OnboardingStep3> {
 
   @override
   Widget build(BuildContext context) {
-    final nextEnabled = _photoUploaded;
+    final nextEnabled = true;
 
     return Scaffold(
       backgroundColor: const Color(0xFF1A2740),
@@ -120,6 +120,8 @@ class _OnboardingStep3State extends State<OnboardingStep3> {
                         actionLabel: _photoUploaded ? 'Retake' : 'Take Selfie',
                         actionOnPressed: _togglePhoto,
                         content: _photoUploaded ? _photoPreview() : _photoPlaceholder(),
+                        showActionBelow: true,
+                        showTopAction: true,
                       ),
 
                       const SizedBox(height: 12),
@@ -176,8 +178,8 @@ class _OnboardingStep3State extends State<OnboardingStep3> {
                         width: double.infinity,
                         height: 52,
                         child: ElevatedButton(
-                          onPressed: nextEnabled
-                              ? () => Navigator.of(context).pushReplacementNamed(AppRouter.home)
+                            onPressed: nextEnabled
+                              ? () => Navigator.of(context).pushReplacementNamed(AppRouter.onboardingStep4)
                               : null,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: nextEnabled ? const Color(0xFF0B2B4A) : Colors.grey.shade400,
@@ -187,7 +189,7 @@ class _OnboardingStep3State extends State<OnboardingStep3> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Text('Next', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                              const Text('Next', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white)),
                               const SizedBox(width: 8),
                               Icon(Icons.arrow_forward, size: 18, color: Colors.white),
                             ],
@@ -215,13 +217,28 @@ class _OnboardingStep3State extends State<OnboardingStep3> {
   Widget _photoPlaceholder() {
     return Container(
       width: double.infinity,
-      height: 120,
+      height: 140,
       decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.grey.shade300, width: 1),
-        borderRadius: BorderRadius.circular(8),
       ),
-      child: const Center(
-        child: Icon(Icons.person_outline, size: 56, color: Colors.grey),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 84,
+              height: 84,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: const Icon(Icons.person_outline, size: 44, color: Colors.grey),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -229,15 +246,16 @@ class _OnboardingStep3State extends State<OnboardingStep3> {
   Widget _photoPreview() {
     return Container(
       width: double.infinity,
-      height: 120,
+      height: 140,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         color: Colors.grey.shade200,
         image: const DecorationImage(
           image: NetworkImage('https://i.pravatar.cc/300'),
           fit: BoxFit.cover,
         ),
       ),
+      child: Container(),
     );
   }
 
@@ -269,6 +287,7 @@ class _OnboardingStep3State extends State<OnboardingStep3> {
     required VoidCallback actionOnPressed,
     required Widget content,
     bool showActionBelow = false,
+    bool showTopAction = false,
   }) {
     return Card(
       margin: EdgeInsets.zero,
@@ -290,10 +309,16 @@ class _OnboardingStep3State extends State<OnboardingStep3> {
                     if (subtitle.isNotEmpty) Text(subtitle, style: const TextStyle(color: Colors.black54, fontSize: 12)),
                   ],
                 ),
-                if (!showActionBelow)
-                  TextButton(
+                if (showTopAction)
+                  OutlinedButton(
                     onPressed: actionOnPressed,
-                    child: Text(actionLabel),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      side: BorderSide(color: Colors.grey.shade300),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    ),
+                    child: Text(actionLabel, style: const TextStyle(color: Colors.black87)),
                   ),
               ],
             ),
