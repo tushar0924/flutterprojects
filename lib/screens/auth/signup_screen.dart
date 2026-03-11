@@ -30,17 +30,13 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       body: SafeArea(
         child: Column(
           children: [
-
             /// ---------------- HEADER ---------------- ///
             Container(
               height: 260,
               width: double.infinity,
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [
-                    Color(0xFF0F2A47),
-                    Color(0xFF0C223B),
-                  ],
+                  colors: [Color(0xFF0F2A47), Color(0xFF0C223B)],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                 ),
@@ -63,10 +59,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   SizedBox(height: 10),
                   Text(
                     "Create your account",
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.white,
-                    ),
+                    style: TextStyle(fontSize: 15, color: Colors.white),
                   ),
                 ],
               ),
@@ -88,13 +81,11 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                     left: 28,
                     right: 28,
                     top: 32,
-                    bottom:
-                    MediaQuery.of(context).viewInsets.bottom + 24,
+                    bottom: MediaQuery.of(context).viewInsets.bottom + 24,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-
                       const Text(
                         "Sign Up",
                         style: TextStyle(
@@ -108,10 +99,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
                       const Text(
                         "Enter your details to get started",
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.black54,
-                        ),
+                        style: TextStyle(fontSize: 13, color: Colors.black54),
                       ),
 
                       const SizedBox(height: 28),
@@ -119,10 +107,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                       /// FULL NAME LABEL
                       const Text(
                         "Full Name",
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.black87,
-                        ),
+                        style: TextStyle(fontSize: 13, color: Colors.black87),
                       ),
 
                       const SizedBox(height: 8),
@@ -144,10 +129,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                           filled: true,
                           fillColor: const Color(0xFFE6E6E6),
                           contentPadding: const EdgeInsets.symmetric(
-                              vertical: 16),
+                            vertical: 16,
+                          ),
                           border: OutlineInputBorder(
-                            borderRadius:
-                            BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide.none,
                           ),
                         ),
@@ -158,10 +143,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                       /// PHONE LABEL
                       const Text(
                         "Phone Number",
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.black87,
-                        ),
+                        style: TextStyle(fontSize: 13, color: Colors.black87),
                       ),
 
                       const SizedBox(height: 8),
@@ -172,8 +154,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                         keyboardType: TextInputType.phone,
                         maxLength: 10,
                         decoration: InputDecoration(
-                          hintText:
-                          "Enter 10 digit mobile number",
+                          hintText: "Enter 10 digit mobile number",
                           hintStyle: const TextStyle(
                             fontSize: 13,
                             color: Colors.black45,
@@ -193,10 +174,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                           filled: true,
                           fillColor: const Color(0xFFE6E6E6),
                           contentPadding: const EdgeInsets.symmetric(
-                              vertical: 16),
+                            vertical: 16,
+                          ),
                           border: OutlineInputBorder(
-                            borderRadius:
-                            BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide.none,
                           ),
                         ),
@@ -206,10 +187,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
                       const Text(
                         "We'll send you an OTP to verify your number",
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.black45,
-                        ),
+                        style: TextStyle(fontSize: 11, color: Colors.black45),
                       ),
 
                       const SizedBox(height: 28),
@@ -226,14 +204,18 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                                   if (phone.length != 10) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        content: Text('Enter a valid 10-digit phone number'),
+                                        content: Text(
+                                          'Enter a valid 10-digit phone number',
+                                        ),
                                       ),
                                     );
                                     return;
                                   }
 
-                                  final resp = await ref.read(authProvider.notifier).sendSignupOtp(phone);
-                                  if (!mounted) return;
+                                  final resp = await ref
+                                      .read(authProvider.notifier)
+                                      .sendSignupOtp(phone);
+                                  if (!context.mounted) return;
 
                                   if (resp.success == true) {
                                     Navigator.of(context).pushNamed(
@@ -242,20 +224,15 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                                     );
                                   } else {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(resp.message ?? 'Failed to request OTP'),
-                                      ),
+                                      SnackBar(content: Text(resp.message)),
                                     );
                                   }
                                 },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                            const Color(0xFF7FA6B5),
+                            backgroundColor: const Color(0xFF7FA6B5),
                             elevation: 0,
-                            shape:
-                            RoundedRectangleBorder(
-                              borderRadius:
-                              BorderRadius.circular(12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
                           ),
                           child: authState.isLoading
@@ -271,8 +248,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                                   "Send OTP",
                                   style: TextStyle(
                                     fontSize: 15,
-                                    fontWeight:
-                                    FontWeight.w500,
+                                    fontWeight: FontWeight.w500,
                                     color: Colors.white,
                                   ),
                                 ),
@@ -295,8 +271,14 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                               ),
                             ),
                             TextButton(
-                              onPressed: () => Navigator.of(context).pushNamed(AppRouter.login),
-                              style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                              onPressed: () => Navigator.of(
+                                context,
+                              ).pushNamed(AppRouter.login),
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: const Size(0, 0),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
                               child: const Text(
                                 "Login",
                                 style: TextStyle(
@@ -304,7 +286,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
-                            )
+                            ),
                           ],
                         ),
                       ),

@@ -1,8 +1,47 @@
 class ApiEndpoint {
-  static const String baseUrl = 'https://api.zynexxindia.com/api/';
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'https://api.zynexxindia.com/api/',
+  );
 }
 
-// Add more endpoints here as needed, for example:
-// class AuthEndpoint {
-//   static const String login = '${ApiEndpoint.baseUrl}auth/login';
-// }
+class AuthApiEndpoint {
+  static const String login = 'auth/login';
+  static const String signup = 'auth/signup';
+  static const String verifyOtp = 'auth/verify-otp';
+  static const String helperVerifyOtp = 'auth/helper/verify-otp';
+  static const String refreshToken = 'auth/refresh-token';
+  static const String logout = 'auth/logout';
+}
+
+class PartnerApiEndpoint {
+  static const String onboardingStatus = 'partner/onboarding/status';
+  static const String onboardingProfile = 'partner/onboarding/profile';
+  static const String onboardingBank = 'partner/onboarding/bank';
+
+  static const String uploadSelfie = 'partner/kyc/upload-selfie';
+  static const String uploadPan = 'partner/kyc/upload-pan';
+  static const String uploadPolice = 'partner/kyc/upload-police';
+
+  static const String earningsSummary = 'partner/earnings/summary';
+  static const String earningsHistory = 'partner/earnings/history';
+
+  static const String opsDashboard = 'partner/ops/dashboard';
+  static const String opsStatus = 'partner/ops/status';
+
+  static const String publicJobs = 'partner/jobs';
+  static const String bookings = 'partner/bookings';
+
+  static String bookingDetail(int bookingId) => '$bookings/$bookingId';
+}
+
+class ServicesApiEndpoint {
+  static const String list = 'services';
+
+  static String detail(int serviceId) => '$list/$serviceId';
+}
+
+class UserApiEndpoint {
+  static const String profile = 'user/profile';
+  static const String registerHelper = 'user/register-helper';
+}

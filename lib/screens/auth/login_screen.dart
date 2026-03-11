@@ -76,153 +76,188 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                  const Text(
-                    'Login to your account',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Enter your mobile number to continue',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.black45,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Phone Number',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.black54,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Phone number input row
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        // Static +91 prefix
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 14),
-                          decoration: BoxDecoration(
-                            border: Border(
-                              right: BorderSide(color: Colors.grey.shade300),
-                            ),
-                          ),
-                          child: const Text(
-                            '+91',
-                            style: TextStyle(
-                              fontSize: 15,
-                              color: Colors.black87,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-
-                        // Phone input field
-                        Expanded(
-                          child: TextField(
-                            controller: _phoneController,
-                            keyboardType: TextInputType.phone,
-                            maxLength: 10,
-                            decoration: const InputDecoration(
-                              hintText: 'Enter 10 digit mobile number',
-                              hintStyle: TextStyle(
-                                color: Colors.black38,
-                                fontSize: 14,
-                              ),
-                              border: InputBorder.none,
-                              contentPadding:
-                                  EdgeInsets.symmetric(horizontal: 12),
-                              counterText: '',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
-                  const Text(
-                    "We'll send you an OTP to verify your number",
-                    style: TextStyle(fontSize: 12, color: Colors.black45),
-                  ),
-                  const SizedBox(height: 28),
-
-                  // Send OTP Button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: authState.isLoading
-                          ? null
-                          : () async {
-                              final phone = _phoneController.text.trim();
-                              if (phone.length != 10) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Enter a valid 10-digit phone number')),
-                                );
-                                return;
-                              }
-
-                              final resp = await ref.read(authProvider.notifier).sendOtp(phone);
-                              if (resp.success == true) {
-                                Navigator.of(context).pushNamed(AppRouter.otp, arguments: resp.phone);
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(resp.message ?? 'Failed to request OTP')),
-                                );
-                              }
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF7AAAB5),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        elevation: 0,
+                    const Text(
+                      'Login to your account',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
                       ),
-                      child: authState.isLoading
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : const Text(
-                              'Send OTP',
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Enter your mobile number to continue',
+                      style: TextStyle(fontSize: 13, color: Colors.black45),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Phone Number',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.black54,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Phone number input row
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          // Static +91 prefix
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                right: BorderSide(color: Colors.grey.shade300),
+                              ),
+                            ),
+                            child: const Text(
+                              '+91',
                               style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
+                                fontSize: 15,
+                                color: Colors.black87,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
-                    ),
-                  ),
+                          ),
 
-                  const SizedBox(height: 20),
-
-                  // Sign Up link
-                  Center(
-                    child: Wrap(
-                      alignment: WrapAlignment.center,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        const Text("Don't have an account? ", style: TextStyle(color: Colors.black54, fontSize: 13)),
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pushNamed(AppRouter.signup),
-                          style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                          child: const Text('Sign Up', style: TextStyle(color: Color(0xFF4FC3C8), fontWeight: FontWeight.w600, fontSize: 13)),
-                        )
-                      ],
+                          // Phone input field
+                          Expanded(
+                            child: TextField(
+                              controller: _phoneController,
+                              keyboardType: TextInputType.phone,
+                              maxLength: 10,
+                              decoration: const InputDecoration(
+                                hintText: 'Enter 10 digit mobile number',
+                                hintStyle: TextStyle(
+                                  color: Colors.black38,
+                                  fontSize: 14,
+                                ),
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                counterText: '',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+
+                    const SizedBox(height: 8),
+                    const Text(
+                      "We'll send you an OTP to verify your number",
+                      style: TextStyle(fontSize: 12, color: Colors.black45),
+                    ),
+                    const SizedBox(height: 28),
+
+                    // Send OTP Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: authState.isLoading
+                            ? null
+                            : () async {
+                                final phone = _phoneController.text.trim();
+                                if (phone.length != 10) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Enter a valid 10-digit phone number',
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                final resp = await ref
+                                    .read(authProvider.notifier)
+                                    .sendOtp(phone);
+                                if (!context.mounted) return;
+                                if (resp.success == true) {
+                                  Navigator.of(
+                                    context,
+                                  ).pushNamed(AppRouter.otp, arguments: phone);
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(resp.message)),
+                                  );
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF7AAAB5),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: authState.isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                'Send OTP',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Sign Up link
+                    Center(
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          const Text(
+                            "Don't have an account? ",
+                            style: TextStyle(
+                              color: Colors.black54,
+                              fontSize: 13,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.of(
+                              context,
+                            ).pushNamed(AppRouter.signup),
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(0, 0),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text(
+                              'Sign Up',
+                              style: TextStyle(
+                                color: Color(0xFF4FC3C8),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

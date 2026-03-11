@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../providers/partner_provider.dart';
 import 'upcoming_job_detail_screen.dart';
 
-class UpcomingJobsScreen extends StatefulWidget {
+class UpcomingJobsScreen extends ConsumerStatefulWidget {
   const UpcomingJobsScreen({super.key});
 
   @override
-  State<UpcomingJobsScreen> createState() => _UpcomingJobsScreenState();
+  ConsumerState<UpcomingJobsScreen> createState() => _UpcomingJobsScreenState();
 }
 
-class _UpcomingJobsScreenState extends State<UpcomingJobsScreen> {
+class _UpcomingJobsScreenState extends ConsumerState<UpcomingJobsScreen> {
   String _selectedServiceType = 'Service Type';
   String _selectedDay = 'Day';
+  List<Map<String, dynamic>> _bookings = [];
+  bool _isLoading = true;
 
   static const List<String> _serviceTypes = [
     'Service Type',
@@ -23,7 +27,7 @@ class _UpcomingJobsScreenState extends State<UpcomingJobsScreen> {
 
   static const List<String> _days = ['Day', 'Today', 'Tomorrow', 'This Week'];
 
-  static const List<_UpcomingJobItem> _jobs = [
+  static const List<_UpcomingJobItem> _fallbackJobs = [
     _UpcomingJobItem(
       name: 'Priya Sharma',
       rating: '4.9',
@@ -63,6 +67,53 @@ class _UpcomingJobsScreenState extends State<UpcomingJobsScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadBookings());
+  }
+
+  Future<void> _loadBookings() async {
+    setState(() => _isLoading = true);
+    try {
+      final repo = ref.read(partnerRepositoryProvider);
+      final res = await repo.getBookings(status: 'CONFIRMED', limit: 50);
+      if (mounted) {
+        final list = res['bookings'] as List<dynamic>? ?? [];
+        setState(() {
+          _bookings = list.map((e) => e as Map<String, dynamic>).toList();
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  List<_UpcomingJobItem> get _jobs {
+    if (_bookings.isEmpty) return _fallbackJobs;
+    return _bookings.map((b) {
+      final customer = b['customer'] as Map<String, dynamic>?;
+      final service = b['service'] as Map<String, dynamic>?;
+      return _UpcomingJobItem(
+        name: customer?['name'] as String? ?? 'Customer',
+        rating: '4.5',
+        serviceType: service?['name'] as String? ?? 'Service',
+        schedule: b['scheduledAt'] != null
+            ? _formatSchedule(b['scheduledAt'].toString())
+            : '—',
+        duration: '${b['estimatedHours'] ?? 2} hours',
+        address: b['address'] as String? ?? '—',
+        amount: '₹${b['totalAmount'] ?? 0}',
+      );
+    }).toList();
+  }
+
+  String _formatSchedule(String iso) {
+    if (iso.length < 10) return iso;
+    return iso.substring(0, 10);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF2F4F7),
@@ -83,9 +134,11 @@ class _UpcomingJobsScreenState extends State<UpcomingJobsScreen> {
           ),
         ),
       ),
-      body: SafeArea(
-        top: false,
-        child: Padding(
+      body: RefreshIndicator(
+        onRefresh: _loadBookings,
+        child: SafeArea(
+          top: false,
+          child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
           child: Column(
             children: [
@@ -114,20 +167,20 @@ class _UpcomingJobsScreenState extends State<UpcomingJobsScreen> {
               ),
               const SizedBox(height: 10),
               Row(
-                children: const [
+                children: [
                   Expanded(
                     child: _StatBox(
-                      title: '03',
-                      subtitle: 'Available Today',
+                      title: _isLoading ? '...' : '${_bookings.length}',
+                      subtitle: 'Bookings',
                       backgroundColor: Color(0xFFEAF3FF),
                       borderColor: Color(0xFFBBD8FF),
                     ),
                   ),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: _StatBox(
-                      title: '12',
-                      subtitle: 'Total Jobs Available',
+                      title: _isLoading ? '...' : '${_bookings.length}',
+                      subtitle: 'Total',
                       backgroundColor: Color(0xFFEAF9E9),
                       borderColor: Color(0xFFB7E6B4),
                     ),
@@ -137,6 +190,7 @@ class _UpcomingJobsScreenState extends State<UpcomingJobsScreen> {
               const SizedBox(height: 10),
               Expanded(
                 child: ListView.separated(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   itemCount: _jobs.length,
                   separatorBuilder: (_, index) => const SizedBox(height: 10),
                   itemBuilder: (context, index) => _JobCard(
@@ -159,6 +213,7 @@ class _UpcomingJobsScreenState extends State<UpcomingJobsScreen> {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

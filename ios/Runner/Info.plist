@@ -28,8 +28,23 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>This app needs camera access to capture and verify your live selfie.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app uses your location to capture your service area coordinates during registration.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app needs photo library access to select work photos.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>3.110.231.111</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
+		</dict>
+	</dict>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -1,8 +1,70 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../providers/partner_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../session/session_manager.dart';
+import '../../routes/app_router.dart';
 import '../help_support/help_support_screen.dart';
 
-class HomeSideDrawer extends StatelessWidget {
+class HomeSideDrawer extends ConsumerStatefulWidget {
   const HomeSideDrawer({super.key});
+
+  @override
+  ConsumerState<HomeSideDrawer> createState() => _HomeSideDrawerState();
+}
+
+class _HomeSideDrawerState extends ConsumerState<HomeSideDrawer> {
+  Map<String, dynamic>? _profile;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadProfile());
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      final repo = ref.read(userRepositoryProvider);
+      final res = await repo.getProfile();
+      if (mounted && res['success'] == true && res['user'] != null) {
+        setState(() {
+          _profile = res['user'] as Map<String, dynamic>;
+          _loading = false;
+        });
+      } else if (mounted) {
+        setState(() => _loading = false);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  String get _initials {
+    final name = _profile?['name']?.toString();
+    if (name == null || name.isEmpty) return 'H';
+    return name.substring(0, 1).toUpperCase();
+  }
+
+  Future<void> _logout() async {
+    try {
+      await ref.read(authRepositoryProvider).logout();
+      final session = SessionManager();
+      await session.clearSession();
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        AppRouter.login,
+        (route) => false,
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Logout failed')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -88,10 +150,10 @@ class HomeSideDrawer extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 32,
-            backgroundColor: const Color(0xFFF7941D), // Orange
-            child: const Text(
-              'P',
-              style: TextStyle(fontSize: 28, color: Colors.white, fontWeight: FontWeight.normal),
+            backgroundColor: const Color(0xFFF7941D),
+            child: Text(
+              _loading ? '...' : _initials,
+              style: const TextStyle(fontSize: 28, color: Colors.white, fontWeight: FontWeight.normal),
             ),
           ),
           const SizedBox(width: 15),
@@ -99,15 +161,18 @@ class HomeSideDrawer extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
-              children: const [
+              children: [
                 Text(
-                  'Parul Gupta',
-                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w500),
+                  _loading ? '...' : (_profile?['name'] as String? ?? 'Helper'),
+                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w500),
                 ),
-                SizedBox(height: 4),
-                Text(
-                  '+91 1234566872',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                const SizedBox(height: 4),
+                FutureBuilder<String?>(
+                  future: SessionManager().getUserPhone(),
+                  builder: (_, snap) => Text(
+                    snap.data ?? (_profile?['phone'] as String? ?? ''),
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
                 ),
               ],
             ),
@@ -140,7 +205,7 @@ class HomeSideDrawer extends StatelessWidget {
             width: double.infinity,
             height: 50,
             child: ElevatedButton(
-              onPressed: () {},
+              onPressed: _logout,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFFFF1F0), // Light red tint
                 elevation: 0,

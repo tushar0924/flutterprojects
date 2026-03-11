@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'api_endpoint.dart';
 import '../session/session_manager.dart';
 
@@ -6,76 +9,277 @@ class ApiClient {
   late final Dio dio;
   final SessionManager _session = SessionManager();
 
-  ApiClient({BaseOptions? options}) {
-    final baseOptions = options ?? BaseOptions(
-      baseUrl: ApiEndpoint.baseUrl,
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 15),
-      headers: {
-        'Content-Type': 'application/json',
-      },
+  String _maskSensitiveValue(String key, dynamic value) {
+    final lower = key.toLowerCase();
+    if (value == null) return 'null';
+    if (lower.contains('authorization')) {
+      final text = value.toString();
+      if (text.startsWith('Bearer ') && text.length > 16) {
+        return 'Bearer ${text.substring(7, 13)}...';
+      }
+      return '***';
+    }
+    if (lower.contains('refresh') || lower.contains('access')) {
+      return '***';
+    }
+    return value.toString();
+  }
+
+  dynamic _describeData(dynamic data) {
+    if (data == null) return null;
+    if (data is FormData) {
+      return <String, dynamic>{
+        'fields': <Map<String, dynamic>>[
+          for (final field in data.fields)
+            <String, dynamic>{'key': field.key, 'value': field.value},
+        ],
+        'files': <Map<String, dynamic>>[
+          for (final entry in data.files)
+            <String, dynamic>{
+              'field': entry.key,
+              'filename': entry.value.filename,
+              'length': entry.value.length,
+              'contentType': entry.value.contentType?.toString(),
+            },
+        ],
+      };
+    }
+    if (data is Map) {
+      return data.map<String, dynamic>(
+        (dynamic key, dynamic value) => MapEntry<String, dynamic>(
+          key.toString(),
+          key is String ? _maskSensitiveValue(key, value) : value,
+        ),
+      );
+    }
+    if (data is List) {
+      return data;
+    }
+    return data.toString();
+  }
+
+  Map<String, dynamic> _describeHeaders(Map<String, dynamic> headers) {
+    return headers.map<String, dynamic>(
+      (String key, dynamic value) =>
+          MapEntry<String, dynamic>(key, _maskSensitiveValue(key, value)),
     );
+  }
+
+  String _pretty(dynamic value) {
+    if (value == null) return 'null';
+    if (value is String) return value;
+    try {
+      return const JsonEncoder.withIndent('  ').convert(value);
+    } catch (_) {
+      return value.toString();
+    }
+  }
+
+  void _logBlock(String title, Map<String, dynamic> payload) {
+    if (!kDebugMode) return;
+
+    debugPrint('========== $title ==========');
+    debugPrint(_pretty(payload));
+    debugPrint('============================');
+  }
+
+  bool _shouldLogRequest(RequestOptions opts) {
+    if (!kDebugMode) return false;
+    if (opts.extra['skipLog'] == true) return false;
+    if (opts.extra['logRequest'] == true) return true;
+    final method = opts.method.toUpperCase();
+    return method != 'GET';
+  }
+
+  void _logRequest(RequestOptions opts) {
+    if (!_shouldLogRequest(opts)) return;
+
+    _logBlock('API REQUEST', <String, dynamic>{
+      'method': opts.method,
+      'url': opts.uri.toString(),
+      'headers': _describeHeaders(opts.headers),
+      'queryParameters': opts.queryParameters,
+      'data': _describeData(opts.data),
+    });
+  }
+
+  void _logResponse(Response<dynamic> resp) {
+    if (resp.requestOptions.extra['shouldLogRequest'] != true) return;
+
+    final startedAt = resp.requestOptions.extra['requestStartedAt'];
+    final durationMs = startedAt is DateTime
+        ? DateTime.now().difference(startedAt).inMilliseconds
+        : null;
+
+    _logBlock('API RESPONSE', <String, dynamic>{
+      'method': resp.requestOptions.method,
+      'url': resp.requestOptions.uri.toString(),
+      'statusCode': resp.statusCode,
+      'durationMs': durationMs,
+      'data': resp.data,
+    });
+  }
+
+  void _logError(DioException err) {
+    if (err.requestOptions.extra['shouldLogRequest'] != true) return;
+
+    final startedAt = err.requestOptions.extra['requestStartedAt'];
+    final durationMs = startedAt is DateTime
+        ? DateTime.now().difference(startedAt).inMilliseconds
+        : null;
+
+    _logBlock('API ERROR', <String, dynamic>{
+      'method': err.requestOptions.method,
+      'url': err.requestOptions.uri.toString(),
+      'statusCode': err.response?.statusCode,
+      'durationMs': durationMs,
+      'type': err.type.toString(),
+      'message': err.message,
+      'requestData': _describeData(err.requestOptions.data),
+      'responseData': err.response?.data,
+    });
+  }
+
+  ApiClient({BaseOptions? options}) {
+    final baseOptions =
+        options ??
+        BaseOptions(
+          baseUrl: ApiEndpoint.baseUrl,
+          connectTimeout: const Duration(seconds: 10),
+          receiveTimeout: const Duration(seconds: 15),
+          headers: {'Content-Type': 'application/json'},
+        );
 
     dio = Dio(baseOptions);
 
-    dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (opts, handler) async {
-        final skipAuth = opts.extra['skipAuth'] == true;
-        if (!skipAuth) {
-          final token = await _session.getAccessToken();
-          if (token != null && token.isNotEmpty) {
-            opts.headers['Authorization'] = 'Bearer $token';
-          }
-        }
-        return handler.next(opts);
-      },
-      onResponse: (resp, handler) => handler.next(resp),
-      onError: (err, handler) async {
-        if (err.response?.statusCode == 401) {
-          final refreshToken = await _session.getRefreshToken();
-          if (refreshToken == null || refreshToken.isEmpty) {
-            await _session.clearSession();
-            return handler.next(err);
-          }
-          try {
-            final response = await dio.post<Map<String, dynamic>>(
-              'auth/refresh-token',
-              data: {'refreshToken': refreshToken},
-              options: Options(extra: {'skipAuth': true}),
-            );
-            final data = response.data;
-            if (data != null && data['success'] == true) {
-              final newToken = data['accessToken'] as String?;
-              if (newToken != null && newToken.isNotEmpty) {
-                await _session.updateAccessToken(newToken);
-                final opts = err.requestOptions;
-                opts.headers['Authorization'] = 'Bearer $newToken';
-                final res = await dio.fetch(opts);
-                return handler.resolve(res);
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (opts, handler) async {
+          final skipAuth = opts.extra['skipAuth'] == true;
+          if (!skipAuth) {
+            try {
+              final token = await _session.getAccessToken();
+              if (token != null && token.isNotEmpty) {
+                opts.headers['Authorization'] = 'Bearer $token';
               }
+            } catch (_) {
+              // Continue request without auth header if session read fails.
             }
-          } catch (_) {}
-          await _session.clearSession();
-        }
-        return handler.next(err);
-      },
-    ));
+          }
+          opts.extra['requestStartedAt'] = DateTime.now();
+          opts.extra['shouldLogRequest'] = _shouldLogRequest(opts);
+          _logRequest(opts);
+          return handler.next(opts);
+        },
+        onResponse: (resp, handler) {
+          _logResponse(resp);
+          return handler.next(resp);
+        },
+        onError: (err, handler) async {
+          _logError(err);
+          if (err.response?.statusCode == 401) {
+            String? refreshToken;
+            try {
+              refreshToken = await _session.getRefreshToken();
+            } catch (_) {
+              refreshToken = null;
+            }
+            if (refreshToken == null || refreshToken.isEmpty) {
+              try {
+                await _session.clearSession();
+              } catch (_) {}
+              return handler.next(err);
+            }
+            try {
+              final response = await dio.post<Map<String, dynamic>>(
+                AuthApiEndpoint.refreshToken,
+                data: {'refreshToken': refreshToken},
+                options: Options(extra: {'skipAuth': true, 'skipLog': true}),
+              );
+              final data = response.data;
+              if (data != null && data['success'] == true) {
+                final newToken = data['accessToken'] as String?;
+                if (newToken != null && newToken.isNotEmpty) {
+                  await _session.updateAccessToken(newToken);
+                  final opts = err.requestOptions;
+                  opts.headers['Authorization'] = 'Bearer $newToken';
+                  final res = await dio.fetch(opts);
+                  return handler.resolve(res);
+                }
+              }
+            } catch (_) {}
+            try {
+              await _session.clearSession();
+            } catch (_) {}
+          }
+          return handler.next(err);
+        },
+      ),
+    );
   }
 
-  Future<Response<T>> get<T>(String path, {Map<String, dynamic>? queryParameters, Options? options}) {
+  Future<Response<T>> get<T>(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) {
     return dio.get<T>(path, queryParameters: queryParameters, options: options);
   }
 
-  Future<Response<T>> post<T>(String path, {dynamic data, Map<String, dynamic>? queryParameters, Options? options}) {
-    return dio.post<T>(path, data: data, queryParameters: queryParameters, options: options);
+  Future<Response<T>> post<T>(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) {
+    return dio.post<T>(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+      options: options,
+    );
   }
 
-  Future<Response<T>> put<T>(String path, {dynamic data, Map<String, dynamic>? queryParameters, Options? options}) {
-    return dio.put<T>(path, data: data, queryParameters: queryParameters, options: options);
+  Future<Response<T>> put<T>(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) {
+    return dio.put<T>(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+      options: options,
+    );
   }
 
-  Future<Response<T>> delete<T>(String path, {dynamic data, Map<String, dynamic>? queryParameters, Options? options}) {
-    return dio.delete<T>(path, data: data, queryParameters: queryParameters, options: options);
+  Future<Response<T>> patch<T>(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) {
+    return dio.patch<T>(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+      options: options,
+    );
+  }
+
+  Future<Response<T>> delete<T>(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) {
+    return dio.delete<T>(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+      options: options,
+    );
   }
 }
 

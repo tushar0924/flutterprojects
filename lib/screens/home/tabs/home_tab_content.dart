@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../providers/partner_provider.dart';
+import '../job_details_screen.dart';
 import '../upcoming_jobs_screen.dart';
 
-class HomeTabContent extends StatelessWidget {
+class HomeTabContent extends ConsumerStatefulWidget {
   const HomeTabContent({
     super.key,
     required this.onMenuTap,
@@ -12,61 +15,181 @@ class HomeTabContent extends StatelessWidget {
   final VoidCallback onMenuTap;
   final VoidCallback onNotificationTap;
 
+  @override
+  ConsumerState<HomeTabContent> createState() => _HomeTabContentState();
+}
+
+class _HomeTabContentState extends ConsumerState<HomeTabContent> {
+  Map<String, dynamic>? _dashboard;
+  Map<String, dynamic>? _userProfile;
+  bool _isLoading = true;
+  bool _isOnline = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+    final partnerRepo = ref.read(partnerRepositoryProvider);
+    final userRepo = ref.read(userRepositoryProvider);
+    try {
+      final profileRes = await userRepo.getProfile();
+      if (profileRes['success'] == true && profileRes['user'] != null) {
+        if (mounted) {
+          setState(
+            () => _userProfile = profileRes['user'] as Map<String, dynamic>,
+          );
+        }
+      }
+      final dashRes = await partnerRepo.getOpsDashboard();
+      final dashboard = _extractDashboard(dashRes);
+      if (dashRes['success'] == true && dashboard.isNotEmpty && mounted) {
+        setState(() {
+          _dashboard = dashboard;
+          _isOnline =
+              (_dashboard!['helper'] as Map<String, dynamic>?)?['isOnline']
+                  as bool? ??
+              true;
+        });
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  Future<void> _toggleOnline() async {
+    final partnerRepo = ref.read(partnerRepositoryProvider);
+    try {
+      final res = await partnerRepo.updateOpsStatus(isOnline: !_isOnline);
+      if (res['success'] == true && mounted) {
+        setState(() => _isOnline = res['isOnline'] as bool? ?? !_isOnline);
+      }
+    } catch (_) {}
+  }
+
   void _openUpcomingJobs(BuildContext context) {
     Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const UpcomingJobsScreen()));
   }
 
+  Map<String, dynamic> _extractDashboard(Map<String, dynamic> payload) {
+    final data = payload['data'];
+    if (data is Map<String, dynamic>) return data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+
+    final dashboard = payload['dashboard'];
+    if (dashboard is Map<String, dynamic>) return dashboard;
+    if (dashboard is Map) return Map<String, dynamic>.from(dashboard);
+
+    if (payload['helper'] is Map) return Map<String, dynamic>.from(payload);
+    return const <String, dynamic>{};
+  }
+
+  String get _displayName {
+    if (_dashboard != null) {
+      final helper = _dashboard!['helper'] as Map<String, dynamic>?;
+      if (helper != null && helper['name'] != null) {
+        return helper['name'] as String;
+      }
+    }
+    if (_userProfile != null && _userProfile!['name'] != null) {
+      return _userProfile!['name'] as String;
+    }
+    return 'Helper';
+  }
+
+  int get _pendingCount =>
+      (_dashboard?['pendingRequestsCount'] as num?)?.toInt() ??
+      (_dashboard?['pendingRequestCount'] as num?)?.toInt() ??
+      0;
+
+  int get _todayCompleted =>
+      (_dashboard?['completedToday'] as num?)?.toInt() ??
+      (_dashboard?['todayCompletedJobs'] as num?)?.toInt() ??
+      0;
+
+  num get _headlineEarnings {
+    final oldSummary = _dashboard?['earningsSummary'] as Map<String, dynamic>?;
+    if (oldSummary != null && oldSummary['week'] is num) {
+      return oldSummary['week'] as num;
+    }
+
+    final earnings = _dashboard?['earnings'] as Map<String, dynamic>?;
+    if (earnings != null) {
+      return earnings['lifetime'] as num? ??
+          earnings['totalPaid'] as num? ??
+          earnings['pending'] as num? ??
+          0;
+    }
+
+    return 0;
+  }
+
+  String get _headlineEarningsLabel {
+    final hasOldWeek =
+        (_dashboard?['earningsSummary'] as Map<String, dynamic>?)?['week'] !=
+        null;
+    return hasOldWeek ? 'Week Earning' : 'Lifetime Earning';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
-      body: Column(
-        children: [
-          _buildHeader(context),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildCurrentJobCard(),
-                  const SizedBox(height: 16), // Reduced from 24
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      GestureDetector(
-                        onTap: () => _openUpcomingJobs(context),
-                        child: const Text(
-                          'Upcoming Jobs',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF1D2939),
+      body: RefreshIndicator(
+        onRefresh: _loadData,
+        child: Column(
+          children: [
+            _buildHeader(context),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildCurrentJobCard(context),
+                    const SizedBox(height: 16), // Reduced from 24
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        GestureDetector(
+                          onTap: () => _openUpcomingJobs(context),
+                          child: const Text(
+                            'Upcoming Jobs',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF1D2939),
+                            ),
                           ),
                         ),
-                      ),
-                      GestureDetector(
-                        onTap: () => _openUpcomingJobs(context),
-                        child: const Text(
-                          'View All',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF0EA5E9),
-                            fontWeight: FontWeight.w500,
+                        GestureDetector(
+                          onTap: () => _openUpcomingJobs(context),
+                          child: const Text(
+                            'View All',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF0EA5E9),
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  _buildUpcomingJobsList(),
-                ],
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    _buildUpcomingJobsList(),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -92,26 +215,26 @@ class HomeTabContent extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _circleButton(icon: Icons.menu, onTap: onMenuTap),
+              _circleButton(icon: Icons.menu, onTap: widget.onMenuTap),
               Column(
                 children: [
-                  const Text(
-                    'Parul Gupta',
-                    style: TextStyle(
+                  Text(
+                    _isLoading ? '...' : _displayName,
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 17,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const _OnlineToggle(),
+                  _OnlineToggle(isOnline: _isOnline, onTap: _toggleOnline),
                 ],
               ),
               Stack(
                 children: [
                   _circleButton(
                     icon: Icons.notifications_none,
-                    onTap: onNotificationTap,
+                    onTap: widget.onNotificationTap,
                   ),
                   Positioned(
                     right: 8,
@@ -134,21 +257,21 @@ class HomeTabContent extends StatelessWidget {
             children: [
               _StatCard(
                 icon: Icons.business_center_outlined,
-                value: '8',
-                label: 'Upcoming Jobs',
+                value: _isLoading ? '...' : '$_pendingCount',
+                label: 'Pending Requests',
                 onTap: () => _openUpcomingJobs(context),
               ),
               const SizedBox(width: 8),
-              const _StatCard(
+              _StatCard(
                 icon: Icons.check_circle_outline,
-                value: '40',
-                label: 'Jobs Completed',
+                value: _isLoading ? '...' : '$_todayCompleted',
+                label: 'Today Completed',
               ),
               const SizedBox(width: 8),
-              const _StatCard(
+              _StatCard(
                 icon: Icons.currency_rupee,
-                value: '₹750',
-                label: 'Total Earning',
+                value: _isLoading ? '...' : '₹$_headlineEarnings',
+                label: _headlineEarningsLabel,
               ),
             ],
           ),
@@ -173,7 +296,27 @@ class HomeTabContent extends StatelessWidget {
     );
   }
 
-  Widget _buildCurrentJobCard() {
+  Widget _buildCurrentJobCard(BuildContext context) {
+    final activeBooking = _dashboard?['activeBooking'] as Map<String, dynamic>?;
+    if (activeBooking == null) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFEAECF0)),
+        ),
+        child: const Center(
+          child: Text(
+            'No active job',
+            style: TextStyle(color: Color(0xFF667085), fontSize: 14),
+          ),
+        ),
+      );
+    }
+    final customer = activeBooking['customer'] as Map<String, dynamic>?;
+    final address = activeBooking['address'] as String? ?? '—';
+    final status = activeBooking['status'] as String? ?? 'IN_PROGRESS';
     return Container(
       padding: const EdgeInsets.all(14), // Tighter inner padding
       decoration: BoxDecoration(
@@ -197,9 +340,9 @@ class HomeTabContent extends StatelessWidget {
                   color: const Color(0xFF22C55E),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: const Text(
-                  'In Progress',
-                  style: TextStyle(
+                child: Text(
+                  status == 'CONFIRMED' ? 'Confirmed' : 'In Progress',
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
@@ -209,22 +352,23 @@ class HomeTabContent extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          const _DetailRow(icon: Icons.person_outline, text: 'Priya Sharma'),
-          const _DetailRow(
-            icon: Icons.work_outline,
-            text: 'Jhadu, pocha, bartan',
+          _DetailRow(
+            icon: Icons.person_outline,
+            text: customer?['name'] as String? ?? 'Customer',
           ),
-          const _DetailRow(
-            icon: Icons.location_on_outlined,
-            text: 'Address, lorem ipsum dolor',
-          ),
-          const _DetailRow(icon: Icons.access_time, text: '10:00 AM - 4:00 PM'),
+          _DetailRow(icon: Icons.location_on_outlined, text: address),
           const SizedBox(height: 14),
           Row(
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const JobDetailsScreen(),
+                      ),
+                    );
+                  },
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     side: const BorderSide(color: Color(0xFFD0D5DD)),
@@ -284,38 +428,47 @@ class HomeTabContent extends StatelessWidget {
 }
 
 class _OnlineToggle extends StatelessWidget {
-  const _OnlineToggle();
+  const _OnlineToggle({this.isOnline = true, this.onTap});
+  final bool isOnline;
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: const Color(0xFF22C55E).withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-            decoration: BoxDecoration(
-              color: const Color(0xFF22C55E),
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: const Text(
-              'Online',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 9,
-                fontWeight: FontWeight.bold,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: const Color(0xFF22C55E).withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: isOnline ? const Color(0xFF22C55E) : Colors.grey,
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: Text(
+                isOnline ? 'Online' : 'Offline',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 4),
-          const CircleAvatar(radius: 4, backgroundColor: Colors.white),
-          const SizedBox(width: 4),
-        ],
+            const SizedBox(width: 4),
+            CircleAvatar(
+              radius: 4,
+              backgroundColor: isOnline ? Colors.white : Colors.white54,
+            ),
+            const SizedBox(width: 4),
+          ],
+        ),
       ),
     );
   }

@@ -1,19 +1,119 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../providers/partner_provider.dart';
 
 import '../upcoming_job_detail_screen.dart';
 import 'jobs_data.dart';
 import 'jobs_models.dart';
 
-class JobsDashboardTab extends StatefulWidget {
+class JobsDashboardTab extends ConsumerStatefulWidget {
   const JobsDashboardTab({super.key});
 
   @override
-  State<JobsDashboardTab> createState() => _JobsDashboardTabState();
+  ConsumerState<JobsDashboardTab> createState() => _JobsDashboardTabState();
 }
 
-class _JobsDashboardTabState extends State<JobsDashboardTab> {
+class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
   String _selectedServiceType = kServiceTypeFilters.first;
   String _selectedDay = kDayFilters.first;
+  List<Map<String, dynamic>> _apiJobs = [];
+  bool _isLoading = true;
+  String? _jobsApiMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadJobs());
+  }
+
+  Future<void> _loadJobs() async {
+    setState(() {
+      _isLoading = true;
+      _jobsApiMessage = null;
+    });
+
+    final repo = ref.read(partnerRepositoryProvider);
+    final res = await repo.getPublicJobs(limit: 50);
+    if (!mounted) return;
+
+    final success = res['success'] == true;
+    if (success) {
+      final jobsList =
+          (res['jobs'] as List<dynamic>?) ??
+          (res['data'] as List<dynamic>?) ??
+          const <dynamic>[];
+      setState(() {
+        _apiJobs = jobsList.whereType<Map<String, dynamic>>().toList();
+        _isLoading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _apiJobs = [];
+      _jobsApiMessage = res['message'] as String?;
+      _isLoading = false;
+    });
+  }
+
+  List<UpcomingJobItem> get _jobs {
+    if (_apiJobs.isEmpty) return kUpcomingJobs;
+    return _apiJobs.map(_mapApiJob).toList();
+  }
+
+  int get _availableTodayCount {
+    final now = DateTime.now();
+    int count = 0;
+    for (final j in _apiJobs) {
+      final raw = j['scheduledAt'] ?? j['schedule'] ?? j['date'];
+      if (raw is! String) continue;
+      final dt = DateTime.tryParse(raw);
+      if (dt != null &&
+          dt.year == now.year &&
+          dt.month == now.month &&
+          dt.day == now.day) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  String _formatAmount(dynamic raw) {
+    if (raw == null) return '₹0';
+    if (raw is num) return '₹${raw.toStringAsFixed(raw % 1 == 0 ? 0 : 2)}';
+    return '₹$raw';
+  }
+
+  UpcomingJobItem _mapApiJob(Map<String, dynamic> job) {
+    final customer = job['customer'] as Map<String, dynamic>?;
+    final service = job['service'] as Map<String, dynamic>?;
+    final scheduleRaw = job['scheduledAt'] ?? job['schedule'] ?? job['date'];
+    final durationRaw =
+        job['estimatedHours'] ?? job['durationHours'] ?? job['duration'];
+
+    return UpcomingJobItem(
+      name:
+          (customer?['name'] ??
+                  job['customerName'] ??
+                  job['title'] ??
+                  'Customer')
+              .toString(),
+      rating: (customer?['rating'] ?? job['rating'] ?? '4.5').toString(),
+      serviceType:
+          (service?['name'] ??
+                  job['serviceType'] ??
+                  job['category'] ??
+                  'Service')
+              .toString(),
+      schedule: scheduleRaw?.toString() ?? '—',
+      duration: durationRaw != null ? '$durationRaw hours duration' : '—',
+      address: (job['address'] ?? job['location'] ?? '—').toString(),
+      amount: _formatAmount(
+        job['totalAmount'] ?? job['amount'] ?? job['budget'],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -87,10 +187,12 @@ class _JobsDashboardTabState extends State<JobsDashboardTab> {
                     ),
                     const SizedBox(height: 10),
                     Row(
-                      children: const [
+                      children: [
                         Expanded(
                           child: _StatBox(
-                            title: '03',
+                            title: _isLoading
+                                ? '...'
+                                : '${_apiJobs.isEmpty ? 0 : _availableTodayCount}',
                             subtitle: 'Available Today',
                             backgroundColor: Color(0xFFEAF3FF),
                             borderColor: Color(0xFFBBD8FF),
@@ -99,7 +201,7 @@ class _JobsDashboardTabState extends State<JobsDashboardTab> {
                         SizedBox(width: 8),
                         Expanded(
                           child: _StatBox(
-                            title: '12',
+                            title: _isLoading ? '...' : '${_jobs.length}',
                             subtitle: 'Total Jobs Available',
                             backgroundColor: Color(0xFFEAF9E9),
                             borderColor: Color(0xFFB7E6B4),
@@ -107,15 +209,28 @@ class _JobsDashboardTabState extends State<JobsDashboardTab> {
                         ),
                       ],
                     ),
+                    if (_jobsApiMessage != null) ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          _jobsApiMessage!,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF667085),
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     ListView.separated(
-                      itemCount: kUpcomingJobs.length,
+                      itemCount: _jobs.length,
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       separatorBuilder: (_, index) =>
                           const SizedBox(height: 10),
                       itemBuilder: (context, index) {
-                        final UpcomingJobItem job = kUpcomingJobs[index];
+                        final UpcomingJobItem job = _jobs[index];
                         return _JobCard(
                           job: job,
                           onViewDetails: () {
