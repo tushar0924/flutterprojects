@@ -86,9 +86,7 @@ class ApiClient {
   bool _shouldLogRequest(RequestOptions opts) {
     if (!kDebugMode) return false;
     if (opts.extra['skipLog'] == true) return false;
-    if (opts.extra['logRequest'] == true) return true;
-    final method = opts.method.toUpperCase();
-    return method != 'GET';
+    return true;
   }
 
   void _logRequest(RequestOptions opts) {
@@ -104,7 +102,8 @@ class ApiClient {
   }
 
   void _logResponse(Response<dynamic> resp) {
-    if (resp.requestOptions.extra['shouldLogRequest'] != true) return;
+    if (!kDebugMode) return;
+    if (resp.requestOptions.extra['skipLog'] == true) return;
 
     final startedAt = resp.requestOptions.extra['requestStartedAt'];
     final durationMs = startedAt is DateTime
@@ -121,7 +120,8 @@ class ApiClient {
   }
 
   void _logError(DioException err) {
-    if (err.requestOptions.extra['shouldLogRequest'] != true) return;
+    if (!kDebugMode) return;
+    if (err.requestOptions.extra['skipLog'] == true) return;
 
     final startedAt = err.requestOptions.extra['requestStartedAt'];
     final durationMs = startedAt is DateTime

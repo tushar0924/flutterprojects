@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/partner_provider.dart';
+import '../../../utils/toast_helper.dart';
 import 'earnings_data.dart';
 import 'earnings_models.dart';
 import 'widgets/earnings_dashboard_sections.dart';
@@ -79,12 +80,7 @@ class _EarningsDashboardTabState extends ConsumerState<EarningsDashboardTab> {
   }
 
   void _showActionMessage(String title) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$title will be available soon'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    AppToast.showInfo('$title will be available soon');
   }
 
   @override

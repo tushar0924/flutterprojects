@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../routes/app_router.dart';
 import '../../providers/auth_provider.dart';
+import '../../utils/toast_helper.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -170,13 +171,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             : () async {
                                 final phone = _phoneController.text.trim();
                                 if (phone.length != 10) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Enter a valid 10-digit phone number',
-                                      ),
-                                    ),
-                                  );
+                                  AppToast.showError('Enter a valid 10-digit phone number');
                                   return;
                                 }
 
@@ -189,9 +184,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     context,
                                   ).pushNamed(AppRouter.otp, arguments: phone);
                                 } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(resp.message)),
-                                  );
+                                  AppToast.showError(resp.message);
                                 }
                               },
                         style: ElevatedButton.styleFrom(
@@ -222,41 +215,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
 
                     const SizedBox(height: 20),
-
-                    // Sign Up link
-                    Center(
-                      child: Wrap(
-                        alignment: WrapAlignment.center,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          const Text(
-                            "Don't have an account? ",
-                            style: TextStyle(
-                              color: Colors.black54,
-                              fontSize: 13,
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.of(
-                              context,
-                            ).pushNamed(AppRouter.signup),
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: const Size(0, 0),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: const Text(
-                              'Sign Up',
-                              style: TextStyle(
-                                color: Color(0xFF4FC3C8),
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   ],
                 ),
               ),

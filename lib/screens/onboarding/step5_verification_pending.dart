@@ -96,10 +96,7 @@ class _OnboardingStep5State extends ConsumerState<OnboardingStep5> {
       appBar: AppBar(
         backgroundColor: pageNavy,
         elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-        ),
+        leading: const SizedBox.shrink(), // no back — awaiting admin review
       ),
       body: SafeArea(
         child: busy

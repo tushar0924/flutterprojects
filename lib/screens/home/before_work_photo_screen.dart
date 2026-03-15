@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../../utils/toast_helper.dart';
 import 'job_in_progress_screen.dart';
 
 class BeforeWorkPhotoScreen extends StatefulWidget {
@@ -60,17 +61,7 @@ class _BeforeWorkPhotoScreenState extends State<BeforeWorkPhotoScreen> {
         _photos.add(image);
       });
     } catch (e) {
-      if (!mounted) return;
-      final message = 'Could not pick image. Please try again.';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          action: SnackBarAction(
-            label: 'Settings',
-            onPressed: () => openAppSettings(),
-          ),
-        ),
-      );
+      AppToast.showError('Could not pick image. Please try again.');
     }
   }
 
@@ -81,10 +72,7 @@ class _BeforeWorkPhotoScreenState extends State<BeforeWorkPhotoScreen> {
         if (status.isGranted) return true;
         return _handlePermissionDenied(status, 'camera');
       } catch (e) {
-        if (!mounted) return false;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Camera permission error. Open settings.')),
-        );
+        AppToast.showError('Camera permission error. Open settings.');
         return false;
       }
     }
@@ -106,10 +94,7 @@ class _BeforeWorkPhotoScreenState extends State<BeforeWorkPhotoScreen> {
           'gallery',
         );
       } catch (e) {
-        if (!mounted) return false;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gallery permission error. Open settings.')),
-        );
+        AppToast.showError('Gallery permission error. Open settings.');
         return false;
       }
     }
@@ -119,10 +104,7 @@ class _BeforeWorkPhotoScreenState extends State<BeforeWorkPhotoScreen> {
       if (status.isGranted || status.isLimited) return true;
       return _handlePermissionDenied(status, 'gallery');
     } catch (e) {
-      if (!mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Gallery permission error. Open settings.')),
-      );
+      AppToast.showError('Gallery permission error. Open settings.');
       return false;
     }
   }
@@ -131,23 +113,12 @@ class _BeforeWorkPhotoScreenState extends State<BeforeWorkPhotoScreen> {
     if (!mounted) return false;
 
     if (status.isPermanentlyDenied) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$type permission permanently denied. Open settings.'),
-          action: SnackBarAction(
-            label: 'Settings',
-            onPressed: () {
-              openAppSettings();
-            },
-          ),
-        ),
-      );
+      AppToast.showError('$type permission permanently denied. Open settings.');
+      openAppSettings();
       return false;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Please allow $type permission to continue.')),
-    );
+    AppToast.showError('Please allow $type permission to continue.');
     return false;
   }
 

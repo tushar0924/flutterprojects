@@ -17,7 +17,7 @@
         android:maxSdkVersion="32"
         tools:replace="android:maxSdkVersion" />
     <application
-        android:label="flutterprojects"
+        android:label="Helperr4u"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import '../../utils/toast_helper.dart';
 
 import '../../providers/partner_onboarding_provider.dart';
 import '../../routes/app_router.dart';
@@ -15,20 +16,20 @@ class OnboardingStep2 extends ConsumerStatefulWidget {
 
 class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
   String? _gender;
-  final Set<String> _services = <String>{};
-  String? _workType;
+  final Set<int> _selectedServiceIds = <int>{};
+  final Set<String> _workTypes = <String>{};
   String? _experience;
   String? _startTime;
 
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
-  final _cityController = TextEditingController();
 
   double? _capturedLatitude;
   double? _capturedLongitude;
   bool _isCapturingLocation = false;
   bool _isInitialLoading = true;
+  bool _isSubmitting = false;
   bool _hasHydratedForm = false;
 
   @override
@@ -46,7 +47,6 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
     _nameController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
-    _cityController.dispose();
     super.dispose();
   }
 
@@ -87,23 +87,19 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
   }
 
   Future<void> _submitProfile() async {
+    if (_isSubmitting) return;
     final name = _nameController.text.trim();
-    final city = _cityController.text.trim();
     final address = _addressController.text.trim();
 
     if (name.isEmpty) {
       _showMessage('Please enter your full name');
       return;
     }
-    if (city.isEmpty) {
-      _showMessage('Please enter your city');
-      return;
-    }
     if (address.isEmpty) {
-      _showMessage('Please enter your address / service area');
+      _showMessage('Please enter your address');
       return;
     }
-    if (_services.isEmpty) {
+    if (_selectedServiceIds.isEmpty) {
       _showMessage('Please select at least one service');
       return;
     }
@@ -112,23 +108,30 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
       return;
     }
 
+    setState(() => _isSubmitting = true);
+
     final result = await ref
         .read(partnerOnboardingProvider.notifier)
         .submitProfile(
           fullName: name,
-          city: city,
           serviceArea: address,
-          skills: _services.toList(),
+          serviceIds: _selectedServiceIds.toList(),
+          gender: _gender?.toUpperCase() ?? '',
+          workTypes: _workTypes.toList(),
           latitude: _capturedLatitude,
           longitude: _capturedLongitude,
         );
 
     if (!mounted) return;
+
     if (result['success'] == true) {
+      // Navigate immediately — don't wait for the background refreshStatus()
+      // to complete, which would cause step 2 to flicker with a spinner.
       Navigator.of(context).pushReplacementNamed(AppRouter.onboardingStep3);
       return;
     }
 
+    setState(() => _isSubmitting = false);
     _showMessage(result['message'] as String? ?? 'Failed to submit profile');
   }
 
@@ -172,7 +175,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
         _capturedLatitude = position.latitude;
         _capturedLongitude = position.longitude;
       });
-      _showMessage('Location captured successfully');
+      AppToast.showSuccess('Location captured successfully');
     } on MissingPluginException {
       _showMessage(
         'Location plugin is not ready. Restart the app and try again.',
@@ -184,12 +187,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
     }
   }
 
-  void _showMessage(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
+  void _showMessage(String message) => AppToast.showError(message);
 
   Widget _toggleChip(String label, bool selected, VoidCallback onTap) {
     return GestureDetector(
@@ -217,14 +215,14 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
     );
   }
 
-  Widget _serviceChip(String label) {
-    final selected = _services.contains(label);
+  Widget _serviceChip(ServiceModel service) {
+    final selected = _selectedServiceIds.contains(service.id);
     return GestureDetector(
       onTap: () => setState(() {
         if (selected) {
-          _services.remove(label);
+          _selectedServiceIds.remove(service.id);
         } else {
-          _services.add(label);
+          _selectedServiceIds.add(service.id);
         }
       }),
       child: AnimatedContainer(
@@ -239,7 +237,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
           ),
         ),
         child: Text(
-          label,
+          service.name,
           style: TextStyle(
             fontSize: 13,
             color: selected ? const Color(0xFF1A2740) : Colors.black87,
@@ -280,14 +278,18 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
         hintText: hint,
         hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
         filled: true,
-        fillColor: const Color(0xFFF5F6F8),
+        fillColor: Colors.white,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 12,
           vertical: 14,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide.none,
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.grey.shade300),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
@@ -301,10 +303,10 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
   Widget build(BuildContext context) {
     final onboarding = ref.watch(partnerOnboardingProvider);
     final services = onboarding.availableServices;
-    final busy =
-        _isInitialLoading ||
-        onboarding.isBootstrapping ||
-        onboarding.isSubmitting;
+    // Only block the whole screen on the very first load. Submission state is
+    // handled locally via _isSubmitting so the button shows its own loader
+    // without re-rendering the entire page.
+    final busy = _isInitialLoading || onboarding.isBootstrapping;
 
     return Scaffold(
       backgroundColor: const Color(0xFF1A2740),
@@ -317,7 +319,9 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
               child: Row(
                 children: <Widget>[
                   IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () => Navigator.of(context)
+                        .pushNamedAndRemoveUntil(
+                            AppRouter.chooseRole, (r) => false),
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
                   ),
                   const SizedBox(width: 4),
@@ -345,7 +349,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
             Expanded(
               child: Container(
                 decoration: const BoxDecoration(
-                  color: Colors.white,
+                  color: Color(0xFFF0F2F5),
                   borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(20),
                     topRight: Radius.circular(20),
@@ -354,7 +358,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
                 child: busy
                     ? const Center(child: CircularProgressIndicator())
                     : SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(18, 20, 18, 24),
+                        padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
@@ -379,216 +383,265 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
                               ),
                               const SizedBox(height: 16),
                             ],
-                            _label('Full Name *'),
-                            const SizedBox(height: 8),
-                            _field(
-                              controller: _nameController,
-                              hint: 'Enter your full name',
-                              icon: Icons.person_outline,
-                            ),
-                            const SizedBox(height: 16),
-                            _label('Gender'),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: <Widget>[
-                                _toggleChip(
-                                  'Female',
-                                  _gender == 'Female',
-                                  () => setState(() => _gender = 'Female'),
-                                ),
-                                const SizedBox(width: 10),
-                                _toggleChip(
-                                  'Male',
-                                  _gender == 'Male',
-                                  () => setState(() => _gender = 'Male'),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            _label('Verified Phone Number'),
-                            const SizedBox(height: 8),
-                            _field(
-                              controller: _phoneController,
-                              hint: 'Enter your phone number',
-                              icon: Icons.phone_outlined,
-                              keyboardType: TextInputType.phone,
-                              readOnly: onboarding.phone.isNotEmpty,
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Phone number is already linked to your verified account and is not submitted again in the onboarding profile API.',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.black54,
-                                height: 1.4,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            _label('City *'),
-                            const SizedBox(height: 8),
-                            _field(
-                              controller: _cityController,
-                              hint: 'e.g. Mumbai, Delhi',
-                              icon: Icons.location_city_outlined,
-                            ),
-                            const SizedBox(height: 16),
-                            _label('Address / Service Area *'),
-                            const SizedBox(height: 8),
-                            _field(
-                              controller: _addressController,
-                              hint: 'Enter complete address or service area',
-                              icon: Icons.location_on_outlined,
-                              maxLines: 3,
-                            ),
-                            const SizedBox(height: 16),
-                            _label('Location *'),
-                            const SizedBox(height: 8),
-                            SizedBox(
+                            // ── Form card ──────────────────────────────────
+                            Container(
                               width: double.infinity,
-                              height: 48,
-                              child: OutlinedButton.icon(
-                                onPressed: _isCapturingLocation
-                                    ? null
-                                    : _captureGpsLocation,
-                                icon: _isCapturingLocation
-                                    ? const SizedBox(
-                                        width: 16,
-                                        height: 16,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const Icon(
-                                        Icons.navigation_outlined,
-                                        size: 18,
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.grey.shade200,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  _label('Full Name *'),
+                                  const SizedBox(height: 8),
+                                  _field(
+                                    controller: _nameController,
+                                    hint: 'Enter Your full name',
+                                    icon: Icons.person_outline,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  _label('Gender'),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: <Widget>[
+                                      _toggleChip(
+                                        'Female',
+                                        _gender == 'Female',
+                                        () => setState(() => _gender = 'Female'),
                                       ),
-                                label: Text(
-                                  _isCapturingLocation
-                                      ? 'Capturing location...'
-                                      : 'Capture GPS Location',
-                                ),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.black87,
-                                  side: BorderSide(color: Colors.grey.shade300),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
+                                      const SizedBox(width: 10),
+                                      _toggleChip(
+                                        'Male',
+                                        _gender == 'Male',
+                                        () => setState(() => _gender = 'Male'),
+                                      ),
+                                    ],
                                   ),
-                                ),
+                                  const SizedBox(height: 16),
+                                  _label('Phone Number *'),
+                                  const SizedBox(height: 8),
+                                  _field(
+                                    controller: _phoneController,
+                                    hint: '1234563215',
+                                    icon: Icons.phone_outlined,
+                                    keyboardType: TextInputType.phone,
+                                    readOnly: onboarding.phone.isNotEmpty,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  _label('Address *'),
+                                  const SizedBox(height: 8),
+                                  _field(
+                                    controller: _addressController,
+                                    hint: 'Enter complete address',
+                                    icon: Icons.location_on_outlined,
+                                    maxLines: 3,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  _label('Location *'),
+                                  const SizedBox(height: 8),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 48,
+                                    child: OutlinedButton.icon(
+                                      onPressed: _isCapturingLocation
+                                          ? null
+                                          : _captureGpsLocation,
+                                      icon: _isCapturingLocation
+                                          ? const SizedBox(
+                                              width: 16,
+                                              height: 16,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : const Icon(
+                                              Icons.navigation_outlined,
+                                              size: 18,
+                                            ),
+                                      label: Text(
+                                        _isCapturingLocation
+                                            ? 'Capturing location...'
+                                            : 'Capture GPS Location',
+                                      ),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.black87,
+                                        side: BorderSide(
+                                            color: Colors.grey.shade300),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  if (_capturedLatitude != null &&
+                                      _capturedLongitude != null) ...<Widget>[
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 10,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFEAF9E9),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: const Color(0xFFB7E6B4),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        'Location captured: ${_capturedLatitude!.toStringAsFixed(6)}, ${_capturedLongitude!.toStringAsFixed(6)}',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFF166534),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                  const SizedBox(height: 18),
+                                  _label('Choose Service You Provide'),
+                                  const SizedBox(height: 10),
+                                  ...List.generate(
+                                      (services.length / 2).ceil(), (rowIdx) {
+                                    final left = services[rowIdx * 2];
+                                    final rightIdx = rowIdx * 2 + 1;
+                                    final right = rightIdx < services.length
+                                        ? services[rightIdx]
+                                        : null;
+                                    return Padding(
+                                      padding:
+                                          const EdgeInsets.only(bottom: 8),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                              child: _serviceChip(left)),
+                                          const SizedBox(width: 8),
+                                          right != null
+                                              ? Expanded(
+                                                  child: _serviceChip(right))
+                                              : const Expanded(
+                                                  child: SizedBox()),
+                                        ],
+                                      ),
+                                    );
+                                  }),
+                                  const SizedBox(height: 18),
+                                  _label('Type of work you prefer'),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: <Widget>[
+                                      _toggleChip(
+                                        'Hourly',
+                                        _workTypes.contains('Hourly'),
+                                        () => setState(() {
+                                          if (_workTypes.contains('Hourly')) {
+                                            _workTypes.remove('Hourly');
+                                          } else {
+                                            _workTypes.add('Hourly');
+                                          }
+                                        }),
+                                      ),
+                                      _toggleChip(
+                                        'Per day',
+                                        _workTypes.contains('Per day'),
+                                        () => setState(() {
+                                          if (_workTypes
+                                              .contains('Per day')) {
+                                            _workTypes.remove('Per day');
+                                          } else {
+                                            _workTypes.add('Per day');
+                                          }
+                                        }),
+                                      ),
+                                      _toggleChip(
+                                        'Monthly',
+                                        _workTypes.contains('Monthly'),
+                                        () => setState(() {
+                                          if (_workTypes
+                                              .contains('Monthly')) {
+                                            _workTypes.remove('Monthly');
+                                          } else {
+                                            _workTypes.add('Monthly');
+                                          }
+                                        }),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 18),
+                                  _label('Do you have previous experience?'),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: <Widget>[
+                                      _toggleChip(
+                                        'Yes',
+                                        _experience == 'Yes',
+                                        () =>
+                                            setState(() => _experience = 'Yes'),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      _toggleChip(
+                                        'No',
+                                        _experience == 'No',
+                                        () =>
+                                            setState(() => _experience = 'No'),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 18),
+                                  _label('When can you start working?'),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: <Widget>[
+                                      _toggleChip(
+                                        'Immediately',
+                                        _startTime == 'Immediately',
+                                        () => setState(
+                                          () => _startTime = 'Immediately',
+                                        ),
+                                      ),
+                                      _toggleChip(
+                                        'Within a week',
+                                        _startTime == 'Within a week',
+                                        () => setState(
+                                          () => _startTime = 'Within a week',
+                                        ),
+                                      ),
+                                      _toggleChip(
+                                        'Next month',
+                                        _startTime == 'Next month',
+                                        () => setState(
+                                            () => _startTime = 'Next month'),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
                             ),
-                            if (_capturedLatitude != null &&
-                                _capturedLongitude != null) ...<Widget>[
-                              const SizedBox(height: 8),
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 10,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFEAF9E9),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: const Color(0xFFB7E6B4),
-                                  ),
-                                ),
-                                child: Text(
-                                  'Location captured: ${_capturedLatitude!.toStringAsFixed(6)}, ${_capturedLongitude!.toStringAsFixed(6)}',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xFF166534),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                            const SizedBox(height: 18),
-                            _label('Choose Service You Provide *'),
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 10,
-                              runSpacing: 10,
-                              children: services
-                                  .map<Widget>(_serviceChip)
-                                  .toList(),
-                            ),
-                            const SizedBox(height: 18),
-                            _label('Type of work you prefer'),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: <Widget>[
-                                _toggleChip(
-                                  'Hourly',
-                                  _workType == 'Hourly',
-                                  () => setState(() => _workType = 'Hourly'),
-                                ),
-                                _toggleChip(
-                                  'Per day',
-                                  _workType == 'Per day',
-                                  () => setState(() => _workType = 'Per day'),
-                                ),
-                                _toggleChip(
-                                  'Monthly',
-                                  _workType == 'Monthly',
-                                  () => setState(() => _workType = 'Monthly'),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 18),
-                            _label('Do you have previous experience?'),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: <Widget>[
-                                _toggleChip(
-                                  'Yes',
-                                  _experience == 'Yes',
-                                  () => setState(() => _experience = 'Yes'),
-                                ),
-                                const SizedBox(width: 8),
-                                _toggleChip(
-                                  'No',
-                                  _experience == 'No',
-                                  () => setState(() => _experience = 'No'),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 18),
-                            _label('When can you start working?'),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: <Widget>[
-                                _toggleChip(
-                                  'Immediately',
-                                  _startTime == 'Immediately',
-                                  () => setState(
-                                    () => _startTime = 'Immediately',
-                                  ),
-                                ),
-                                _toggleChip(
-                                  'Within a week',
-                                  _startTime == 'Within a week',
-                                  () => setState(
-                                    () => _startTime = 'Within a week',
-                                  ),
-                                ),
-                                _toggleChip(
-                                  'Next month',
-                                  _startTime == 'Next month',
-                                  () =>
-                                      setState(() => _startTime = 'Next month'),
-                                ),
-                              ],
-                            ),
+                            // ── Submit button ───────────────────────────────
                             const SizedBox(height: 24),
                             SizedBox(
                               width: double.infinity,
                               height: 52,
                               child: ElevatedButton(
-                                onPressed: onboarding.isSubmitting
+                                onPressed: _isSubmitting
                                     ? null
                                     : _submitProfile,
                                 style: ElevatedButton.styleFrom(
@@ -598,7 +651,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
                                   ),
                                   elevation: 0,
                                 ),
-                                child: onboarding.isSubmitting
+                                child: _isSubmitting
                                     ? const SizedBox(
                                         width: 24,
                                         height: 24,

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/partner_onboarding_provider.dart';
 import '../../routes/app_router.dart';
+import '../../utils/toast_helper.dart';
 
 class OnboardingStep4 extends ConsumerStatefulWidget {
   const OnboardingStep4({super.key});
@@ -110,10 +111,7 @@ class _OnboardingStep4State extends ConsumerState<OnboardingStep4> {
   }
 
   void _showMessage(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    AppToast.showError(message);
   }
 
   @override
@@ -135,7 +133,8 @@ class _OnboardingStep4State extends ConsumerState<OnboardingStep4> {
               child: Row(
                 children: <Widget>[
                   IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () => Navigator.of(context)
+                        .pushReplacementNamed(AppRouter.onboardingStep3),
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
                   ),
                   const SizedBox(width: 4),

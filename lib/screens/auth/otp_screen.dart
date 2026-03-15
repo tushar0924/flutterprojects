@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../routes/app_router.dart';
 import '../../providers/auth_provider.dart';
+import '../../utils/toast_helper.dart';
 
 class OtpScreen extends ConsumerStatefulWidget {
   final String? phone;
@@ -58,12 +59,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     super.dispose();
   }
 
-  Future<void> _showToast(String msg) async {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg)),
-    );
-  }
+  void _showToast(String msg) => AppToast.showError(msg);
 
   @override
   Widget build(BuildContext context) {
@@ -275,10 +271,10 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                                   final resp = await ref.read(authProvider.notifier).verifyOtp(phone, otp, helper: true);
                                   if (!context.mounted) return;
                                   if (resp.success) {
-                                    _showToast(resp.message);
-                                    Navigator.of(context).pushNamed(AppRouter.language);
+                                    AppToast.showSuccess(resp.message);
+                                    Navigator.of(context).pushNamed(AppRouter.chooseRole);
                                   } else {
-                                    _showToast(resp.message);
+                                    AppToast.showError(resp.message);
                                   }
                                 },
                           icon: const Icon(

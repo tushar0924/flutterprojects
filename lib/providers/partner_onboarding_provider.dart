@@ -8,16 +8,11 @@ import '../repositories/user_repository.dart';
 import '../routes/app_router.dart';
 import 'partner_provider.dart';
 
-const List<String> kDefaultPartnerServices = <String>[
-  'Maid',
-  'Cook',
-  'Shop-helper',
-  'Driver',
-  'Nanny',
-  'Elder Care',
-  'Baby Sitter',
-  'Patient Care',
-];
+class ServiceModel {
+  const ServiceModel({required this.id, required this.name});
+  final int id;
+  final String name;
+}
 
 enum PartnerOnboardingStep { basicInfo, kyc, bank, verificationPending, home }
 
@@ -137,7 +132,7 @@ class PartnerOnboardingState {
     this.panVerificationStatus = '',
     this.fullName = '',
     this.phone = '',
-    this.availableServices = kDefaultPartnerServices,
+    this.availableServices = const <ServiceModel>[],
     this.helperId = '',
     this.requestId = '',
     this.rejectionReason = '',
@@ -160,7 +155,7 @@ class PartnerOnboardingState {
   final String panVerificationStatus;
   final String fullName;
   final String phone;
-  final List<String> availableServices;
+  final List<ServiceModel> availableServices;
   final String helperId;
   final String requestId;
   final String rejectionReason;
@@ -206,7 +201,7 @@ class PartnerOnboardingState {
     String? panVerificationStatus,
     String? fullName,
     String? phone,
-    List<String>? availableServices,
+    List<ServiceModel>? availableServices,
     String? helperId,
     String? requestId,
     String? rejectionReason,
@@ -276,9 +271,11 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
 
   Future<Map<String, dynamic>> submitProfile({
     required String fullName,
-    required String city,
+    String city = '',
     required String serviceArea,
-    required List<String> skills,
+    required List<int> serviceIds,
+    String gender = '',
+    List<String> workTypes = const [],
     double? latitude,
     double? longitude,
   }) async {
@@ -288,7 +285,9 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
         fullName: fullName,
         city: city,
         serviceArea: serviceArea,
-        skills: skills,
+        serviceIds: serviceIds,
+        gender: gender,
+        workTypes: workTypes,
         latitude: latitude,
         longitude: longitude,
       );
@@ -504,12 +503,24 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
     _mergeDashboardPayload(dashboardPayload);
 
     final serviceNames = _extractServices(servicesPayload);
-    final user = profilePayload['user'];
-    final fullName = user is Map<String, dynamic>
-        ? (user['name'] as String? ?? '').trim()
+
+    // fullName: try profile endpoint first (field: 'name'), then status
+    // response (field: 'fullName' under data.user)
+    final profileUser = profilePayload['user'];
+    final fullNameFromProfile = profileUser is Map
+        ? (profileUser['name'] as String? ?? '').trim()
         : '';
-    final phone = user is Map<String, dynamic>
-        ? (user['phone'] as String? ?? '').trim()
+    final statusData = statusPayload['data'];
+    final statusUser = statusData is Map ? statusData['user'] : null;
+    final fullNameFromStatus = statusUser is Map
+        ? (statusUser['fullName'] as String? ?? '').trim()
+        : '';
+    final fullName = fullNameFromProfile.isNotEmpty
+        ? fullNameFromProfile
+        : fullNameFromStatus;
+
+    final phone = profileUser is Map
+        ? (profileUser['phone'] as String? ?? '').trim()
         : '';
 
     state = state.copyWith(
@@ -561,19 +572,69 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
   }
 
   void _mergeStatusPayload(Map<String, dynamic> payload) {
+    // New response shape:
+    // { success, data: { user, helper: { helperId, onboardingStatus, profile, kyc, bank, services, submittedAt }, step } }
+    final dataBag = payload['data'];
+    final data = dataBag is Map
+        ? Map<String, dynamic>.from(dataBag)
+        : const <String, dynamic>{};
+    final helperBag = data['helper'];
+    final helper = helperBag is Map
+        ? Map<String, dynamic>.from(helperBag)
+        : const <String, dynamic>{};
+
+    // Status — prefer helper.onboardingStatus, then data.step, then legacy payload.status
+    final rawStatus = _firstNonEmptyString(<dynamic>[
+      helper['onboardingStatus'],
+      data['step'],
+      payload['status'],
+    ]);
+
+    // Profile complete: profile object exists and has an address
+    final profileBag = helper['profile'];
+    final newProfileCompleted =
+        profileBag is Map && profileBag['address'] != null;
+
+    // KYC complete: all three document URLs present
+    final kycBag = helper['kyc'];
+    final newKycCompleted = kycBag is Map &&
+        kycBag['selfieUrl'] != null &&
+        kycBag['panUrl'] != null &&
+        kycBag['policeUrl'] != null;
+
+    // Bank complete: account number and IFSC present
+    final bankBag = helper['bank'];
+    final newBankCompleted = bankBag is Map &&
+        bankBag['accountNumber'] != null &&
+        bankBag['ifsc'] != null;
+
+    // Legacy step flags (older API shape had payload['steps'])
     final steps = payload['steps'];
-    final backendProfileCompleted = _stepFlag(steps, 'profile');
-    final backendKycCompleted = _stepFlag(steps, 'kyc');
-    final backendBankCompleted = _stepFlag(steps, 'bank');
-    final rawStatus = (payload['status'] as String? ?? '').trim();
+    final backendProfileCompleted =
+        newProfileCompleted || _stepFlag(steps, 'profile');
+    final backendKycCompleted = newKycCompleted || _stepFlag(steps, 'kyc');
+    final backendBankCompleted = newBankCompleted || _stepFlag(steps, 'bank');
+
+    final helperId = _firstNonEmptyString(<dynamic>[
+      helper['helperId'],
+      payload['helperId'],
+    ]);
     final requestId = _firstNonEmptyString(<dynamic>[
       payload['requestId'],
       payload['onboardingRequestId'],
       payload['id'],
     ]);
     final rejectionReason = _firstNonEmptyString(<dynamic>[
+      helper['rejectionReason'],
       payload['rejectionReason'],
       payload['reason'],
+    ]);
+    final submittedAt = _firstNonEmptyString(<dynamic>[
+      helper['submittedAt'],
+      payload['submittedAt'],
+      payload['updatedAt'],
+      payload['createdAt'],
+      state.submittedAt,
     ]);
 
     state = state.copyWith(
@@ -588,16 +649,12 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
       panVerificationStatus: backendKycCompleted
           ? 'VERIFIED'
           : state.panVerificationStatus,
+      helperId: helperId.isNotEmpty ? helperId : state.helperId,
       requestId: requestId.isNotEmpty ? requestId : state.requestId,
       rejectionReason: rejectionReason.isNotEmpty
           ? rejectionReason
           : state.rejectionReason,
-      submittedAt: _firstNonEmptyString(<dynamic>[
-        payload['submittedAt'],
-        payload['updatedAt'],
-        payload['createdAt'],
-        state.submittedAt,
-      ]),
+      submittedAt: submittedAt,
       errorMessage: payload['success'] == false
           ? _messageFromPayload(payload)
           : '',
@@ -624,23 +681,20 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
     return const <String, dynamic>{};
   }
 
-  List<String> _extractServices(Map<String, dynamic> payload) {
-    final services = payload['services'];
-    if (services is! List) return const <String>[];
+  List<ServiceModel> _extractServices(Map<String, dynamic> payload) {
+    final raw = payload['data'] ?? payload['services'];
+    if (raw is! List) return const <ServiceModel>[];
 
-    final names = <String>{};
-    for (final service in services) {
+    final list = <ServiceModel>[];
+    for (final service in raw) {
       if (service is Map<String, dynamic>) {
+        final id = service['id'];
         final name = service['name'];
-        if (name is String && name.trim().isNotEmpty) {
-          names.add(name.trim());
+        if (id is int && name is String && name.trim().isNotEmpty) {
+          list.add(ServiceModel(id: id, name: name.trim()));
         }
-      } else if (service is String && service.trim().isNotEmpty) {
-        names.add(service.trim());
       }
     }
-
-    final list = names.toList()..sort();
     return list;
   }
 

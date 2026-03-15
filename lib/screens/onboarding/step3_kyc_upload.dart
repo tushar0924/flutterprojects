@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../utils/toast_helper.dart';
 
 import '../../providers/partner_onboarding_provider.dart';
 import '../../routes/app_router.dart';
@@ -74,11 +75,11 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
 
       if (!mounted) return;
       setState(() => _isSelfieBusy = false);
-      _showMessage(
-        result['success'] == true
-            ? 'Selfie uploaded successfully'
-            : result['message'] as String? ?? 'Failed to upload selfie',
-      );
+      if (result['success'] == true) {
+        AppToast.showSuccess('Selfie uploaded successfully');
+      } else {
+        AppToast.showError(result['message'] as String? ?? 'Failed to upload selfie');
+      }
     } catch (e) {
       if (mounted) setState(() => _isSelfieBusy = false);
       _showMessage('Failed to capture selfie: $e');
@@ -117,14 +118,15 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
           uploadSucceeded &&
           (verificationStatus.isEmpty || verificationStatus == 'VERIFIED');
 
-      _showMessage(
-        canProceedToPolice
-            ? (verificationStatus == 'VERIFIED'
-                  ? 'PAN verified successfully'
-                  : 'PAN uploaded successfully')
-            : result['message'] as String? ??
-                  'PAN verification failed. Please upload a clear PAN image.',
-      );
+      if (canProceedToPolice) {
+        AppToast.showSuccess(
+          verificationStatus == 'VERIFIED' ? 'PAN verified successfully' : 'PAN uploaded successfully',
+        );
+      } else {
+        AppToast.showError(
+          result['message'] as String? ?? 'PAN verification failed. Please upload a clear PAN image.',
+        );
+      }
     } catch (e) {
       if (mounted) setState(() => _isPanBusy = false);
       _showMessage('Failed to pick PAN image: $e');
@@ -162,12 +164,13 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
 
       if (!mounted) return;
       setState(() => _isPoliceBusy = false);
-      _showMessage(
-        uploadResult['success'] == true
-            ? 'Police verification document uploaded successfully'
-            : uploadResult['message'] as String? ??
-                  'Failed to upload police verification document',
-      );
+      if (uploadResult['success'] == true) {
+        AppToast.showSuccess('Police verification document uploaded successfully');
+      } else {
+        AppToast.showError(
+          uploadResult['message'] as String? ?? 'Failed to upload police verification document',
+        );
+      }
     } catch (e) {
       if (mounted) setState(() => _isPoliceBusy = false);
       _showMessage('Failed to pick police document: $e');
@@ -186,12 +189,7 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
     Navigator.of(context).pushReplacementNamed(AppRouter.onboardingStep4);
   }
 
-  void _showMessage(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
+  void _showMessage(String message) => AppToast.showError(message);
 
   String _fileName(File? file) {
     if (file == null) return '';
@@ -227,7 +225,8 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
               child: Row(
                 children: <Widget>[
                   IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () => Navigator.of(context)
+                        .pushReplacementNamed(AppRouter.onboardingStep2),
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
                   ),
                   const SizedBox(width: 4),

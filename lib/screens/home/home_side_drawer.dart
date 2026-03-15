@@ -5,6 +5,7 @@ import '../../providers/partner_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../session/session_manager.dart';
 import '../../routes/app_router.dart';
+import '../../utils/toast_helper.dart';
 import '../help_support/help_support_screen.dart';
 
 class HomeSideDrawer extends ConsumerStatefulWidget {
@@ -48,6 +49,44 @@ class _HomeSideDrawerState extends ConsumerState<HomeSideDrawer> {
   }
 
   Future<void> _logout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Logout',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+        ),
+        content: const Text(
+          'Are you sure you want to logout?',
+          style: TextStyle(color: Colors.black54, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.black54, fontWeight: FontWeight.w500),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFD92D20),
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text(
+              'Logout',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
     try {
       await ref.read(authRepositoryProvider).logout();
       final session = SessionManager();
@@ -58,11 +97,7 @@ class _HomeSideDrawerState extends ConsumerState<HomeSideDrawer> {
         (route) => false,
       );
     } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Logout failed')),
-        );
-      }
+      AppToast.showError('Logout failed');
     }
   }
 

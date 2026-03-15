@@ -4,6 +4,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'customer_otp_screen.dart';
+import '../../utils/toast_helper.dart';
 
 class SelfieVerificationScreen extends StatefulWidget {
   const SelfieVerificationScreen({super.key});
@@ -140,9 +141,7 @@ class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
       });
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not capture selfie. Please try again.')),
-      );
+      AppToast.showError('Could not capture selfie. Please try again.');
     } finally {
       if (mounted) setState(() => _isCapturing = false);
     }

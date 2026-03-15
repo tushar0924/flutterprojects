@@ -25,11 +25,9 @@ class _ChooseRoleScreenState extends ConsumerState<ChooseRoleScreen> {
 
       final onboarding = ref.read(partnerOnboardingProvider);
       final route = onboardingRouteForStep(onboarding.currentStep);
-      if (route == AppRouter.home) {
-        Navigator.of(context).pushNamedAndRemoveUntil(route, (r) => false);
-      } else {
-        Navigator.of(context).pushReplacementNamed(route);
-      }
+      // Always clear the full back stack so login is never reachable
+      // via the back button while inside the onboarding flow.
+      Navigator.of(context).pushNamedAndRemoveUntil(route, (r) => false);
     } finally {
       if (mounted) setState(() => _isContinuing = false);
     }

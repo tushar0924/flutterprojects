@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../routes/app_router.dart';
 import '../../providers/auth_provider.dart';
+import '../../utils/toast_helper.dart';
 
 class SignupScreen extends ConsumerStatefulWidget {
   const SignupScreen({super.key});
@@ -202,13 +203,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                               : () async {
                                   final phone = _phoneController.text.trim();
                                   if (phone.length != 10) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Enter a valid 10-digit phone number',
-                                        ),
-                                      ),
-                                    );
+                                    AppToast.showError('Enter a valid 10-digit phone number');
                                     return;
                                   }
 
@@ -223,9 +218,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                                       arguments: phone,
                                     );
                                   } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(resp.message)),
-                                    );
+                                    AppToast.showError(resp.message);
                                   }
                                 },
                           style: ElevatedButton.styleFrom(

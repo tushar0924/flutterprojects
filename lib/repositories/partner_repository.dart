@@ -101,28 +101,37 @@ class PartnerRepository {
   /// POST /api/partner/onboarding/profile
   Future<Map<String, dynamic>> submitOnboardingProfile({
     required String fullName,
-    required String city,
+    String city = '',
     required String serviceArea,
-    required List<String> skills,
+    required List<int> serviceIds,
+    String gender = '',
+    List<String> workTypes = const [],
     double? latitude,
     double? longitude,
   }) async {
     final payload = <String, dynamic>{
       'fullName': fullName,
-      'city': city,
-      'serviceArea': serviceArea,
-      'skills': skills,
+      'address': serviceArea,
+      'serviceIds': serviceIds,
     };
+    if (gender.isNotEmpty) payload['gender'] = gender;
+    if (city.isNotEmpty) payload['city'] = city;
+    if (workTypes.isNotEmpty) payload['workTypes'] = workTypes;
     if (latitude != null) payload['latitude'] = latitude;
     if (longitude != null) payload['longitude'] = longitude;
+
+    print('[submitOnboardingProfile] REQUEST payload: $payload');
 
     try {
       final res = await _client.post(
         PartnerApiEndpoint.onboardingProfile,
         data: payload,
       );
-      return (res.data as Map<String, dynamic>?) ?? {};
+      final responseData = (res.data as Map<String, dynamic>?) ?? {};
+      print('[submitOnboardingProfile] RESPONSE (${res.statusCode}): $responseData');
+      return responseData;
     } on DioException catch (e) {
+      print('[submitOnboardingProfile] ERROR (${e.response?.statusCode}): ${e.response?.data}');
       return <String, dynamic>{
         'success': false,
         'message': _extractErrorMessage(
