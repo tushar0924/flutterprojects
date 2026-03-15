@@ -36,7 +36,7 @@ String helperLaunchRouteForState(PartnerOnboardingState state) {
     case PartnerOnboardingStep.home:
       return AppRouter.home;
     case PartnerOnboardingStep.verificationPending:
-      return AppRouter.onboardingStep5;
+      return AppRouter.chooseRole;
     case PartnerOnboardingStep.basicInfo:
     case PartnerOnboardingStep.kyc:
     case PartnerOnboardingStep.bank:

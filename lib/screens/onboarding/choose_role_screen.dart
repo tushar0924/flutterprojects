@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/partner_onboarding_provider.dart';
@@ -12,7 +13,7 @@ class ChooseRoleScreen extends ConsumerStatefulWidget {
 }
 
 class _ChooseRoleScreenState extends ConsumerState<ChooseRoleScreen> {
-  int _selected = -1;
+  int _selected = 1;
   bool _isContinuing = false;
 
   Future<void> _continue() async {
@@ -35,10 +36,15 @@ class _ChooseRoleScreenState extends ConsumerState<ChooseRoleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF1A2740),
-      body: SafeArea(
-        child: Column(
+    return WillPopScope(
+      onWillPop: () async {
+        await SystemNavigator.pop();
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF1A2740),
+        body: SafeArea(
+          child: Column(
           children: <Widget>[
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 32),
@@ -162,7 +168,8 @@ class _ChooseRoleScreenState extends ConsumerState<ChooseRoleScreen> {
                 ),
               ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );

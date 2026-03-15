@@ -272,7 +272,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                                   if (!context.mounted) return;
                                   if (resp.success) {
                                     AppToast.showSuccess(resp.message);
-                                    Navigator.of(context).pushNamed(AppRouter.chooseRole);
+                                    Navigator.of(context).pushNamedAndRemoveUntil(AppRouter.chooseRole, (r) => false);
                                   } else {
                                     AppToast.showError(resp.message);
                                   }

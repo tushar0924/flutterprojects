@@ -179,7 +179,7 @@ class _LanguageScreenState extends State<LanguageScreen> {
                         width: double.infinity,
                         height: 50,
                         child: ElevatedButton(
-                          onPressed: () => Navigator.of(context).pushNamed(AppRouter.chooseRole),
+                          onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil(AppRouter.chooseRole, (r) => false),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF2196F3),
                             elevation: 0,
