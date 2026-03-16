@@ -90,25 +90,9 @@ PartnerOnboardingStep resolvePartnerOnboardingStep({
   if (onboardingStatusIsApproved(status)) {
     return PartnerOnboardingStep.home;
   }
-  if (!profileCompleted &&
-      (status.isEmpty ||
-          status.contains('PROFILE') ||
-          status.contains('BASIC'))) {
-    return PartnerOnboardingStep.basicInfo;
-  }
-  if (!kycCompleted &&
-      (status.contains('KYC') ||
-          status.contains('PAN') ||
-          status.contains('SELFIE') ||
-          status.contains('POLICE'))) {
-    return PartnerOnboardingStep.kyc;
-  }
-  if (!bankCompleted && status.contains('BANK')) {
-    return PartnerOnboardingStep.bank;
-  }
-  if (onboardingStatusNeedsReview(status)) {
-    return PartnerOnboardingStep.verificationPending;
-  }
+  // Each step must be completed before advancing, regardless of server status
+  // string. This prevents a stale status (e.g. PENDING_KYC after KYC upload
+  // but before the server updates to PENDING_BANK) from skipping the bank step.
   if (!profileCompleted) return PartnerOnboardingStep.basicInfo;
   if (!kycCompleted) return PartnerOnboardingStep.kyc;
   if (!bankCompleted) return PartnerOnboardingStep.bank;

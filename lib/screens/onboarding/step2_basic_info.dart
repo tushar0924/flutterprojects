@@ -6,6 +6,7 @@ import '../../utils/toast_helper.dart';
 
 import '../../providers/partner_onboarding_provider.dart';
 import '../../routes/app_router.dart';
+import '../../widgets/back_confirmation_dialog.dart';
 
 class OnboardingStep2 extends ConsumerStatefulWidget {
   const OnboardingStep2({super.key});
@@ -65,14 +66,6 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
         _phoneController.text = _normalizePhone(onboarding.phone);
       }
       _hasHydratedForm = true;
-    }
-
-    final nextStep = onboarding.currentStep;
-    if (nextStep != PartnerOnboardingStep.basicInfo) {
-      Navigator.of(
-        context,
-      ).pushReplacementNamed(onboardingRouteForStep(nextStep));
-      return;
     }
 
     setState(() => _isInitialLoading = false);
@@ -188,6 +181,19 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
   }
 
   void _showMessage(String message) => AppToast.showError(message);
+
+  Future<void> _showBackDialog() async {
+    final shouldDiscard = await showBackConfirmationDialog(
+      context,
+      message:
+          "Your entered information won't be saved.\nYou'll need to fill in this step again when you continue.",
+    );
+    if (shouldDiscard == true && mounted) {
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(AppRouter.chooseRole, (r) => false);
+    }
+  }
 
   Widget _toggleChip(String label, bool selected, VoidCallback onTap) {
     return GestureDetector(
@@ -308,9 +314,14 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
     // without re-rendering the entire page.
     final busy = _isInitialLoading || onboarding.isBootstrapping;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF1A2740),
-      body: SafeArea(
+    return WillPopScope(
+      onWillPop: () async {
+        await _showBackDialog();
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF1A2740),
+        body: SafeArea(
         child: Column(
           children: <Widget>[
             Container(
@@ -319,9 +330,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
               child: Row(
                 children: <Widget>[
                   IconButton(
-                    onPressed: () => Navigator.of(context)
-                        .pushNamedAndRemoveUntil(
-                            AppRouter.chooseRole, (r) => false),
+                    onPressed: _showBackDialog,
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
                   ),
                   const SizedBox(width: 4),
@@ -690,6 +699,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
           ],
         ),
       ),
+    ),
     );
   }
 }

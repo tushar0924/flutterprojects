@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/partner_onboarding_provider.dart';
 import '../../routes/app_router.dart';
 import '../../utils/toast_helper.dart';
+import '../../widgets/back_confirmation_dialog.dart';
 
 class OnboardingStep4 extends ConsumerStatefulWidget {
   const OnboardingStep4({super.key});
@@ -46,13 +47,6 @@ class _OnboardingStep4State extends ConsumerState<OnboardingStep4> {
     if (!mounted) return;
 
     final onboarding = ref.read(partnerOnboardingProvider);
-    final nextStep = onboarding.currentStep;
-    if (nextStep != PartnerOnboardingStep.bank) {
-      Navigator.of(
-        context,
-      ).pushReplacementNamed(onboardingRouteForStep(nextStep));
-      return;
-    }
 
     if (_accountNameController.text.isEmpty && onboarding.fullName.isNotEmpty) {
       _accountNameController.text = onboarding.fullName;
@@ -114,6 +108,19 @@ class _OnboardingStep4State extends ConsumerState<OnboardingStep4> {
     AppToast.showError(message);
   }
 
+  Future<void> _showBackDialog() async {
+    final shouldDiscard = await showBackConfirmationDialog(
+      context,
+      message:
+          "Your bank details won't be saved.\nYou'll need to fill in this step again when you continue.",
+    );
+    if (shouldDiscard == true && mounted) {
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(AppRouter.chooseRole, (r) => false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final onboarding = ref.watch(partnerOnboardingProvider);
@@ -122,9 +129,14 @@ class _OnboardingStep4State extends ConsumerState<OnboardingStep4> {
         onboarding.isBootstrapping ||
         onboarding.isSubmitting;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF1A2740),
-      body: SafeArea(
+    return WillPopScope(
+      onWillPop: () async {
+        await _showBackDialog();
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF1A2740),
+        body: SafeArea(
         child: Column(
           children: <Widget>[
             Container(
@@ -133,8 +145,7 @@ class _OnboardingStep4State extends ConsumerState<OnboardingStep4> {
               child: Row(
                 children: <Widget>[
                   IconButton(
-                    onPressed: () => Navigator.of(context)
-                        .pushReplacementNamed(AppRouter.onboardingStep3),
+                    onPressed: _showBackDialog,
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
                   ),
                   const SizedBox(width: 4),
@@ -304,6 +315,7 @@ class _OnboardingStep4State extends ConsumerState<OnboardingStep4> {
           ],
         ),
       ),
+    ),
     );
   }
 

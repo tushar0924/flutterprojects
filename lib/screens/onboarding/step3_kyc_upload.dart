@@ -8,6 +8,7 @@ import '../../utils/toast_helper.dart';
 
 import '../../providers/partner_onboarding_provider.dart';
 import '../../routes/app_router.dart';
+import '../../widgets/back_confirmation_dialog.dart';
 
 class OnboardingStep3 extends ConsumerStatefulWidget {
   const OnboardingStep3({super.key});
@@ -40,15 +41,6 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
   Future<void> _loadInitialState() async {
     await ref.read(partnerOnboardingProvider.notifier).bootstrap();
     if (!mounted) return;
-
-    final onboarding = ref.read(partnerOnboardingProvider);
-    final nextStep = onboarding.currentStep;
-    if (nextStep != PartnerOnboardingStep.kyc) {
-      Navigator.of(
-        context,
-      ).pushReplacementNamed(onboardingRouteForStep(nextStep));
-      return;
-    }
 
     setState(() => _isInitialLoading = false);
   }
@@ -191,6 +183,19 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
 
   void _showMessage(String message) => AppToast.showError(message);
 
+  Future<void> _showBackDialog() async {
+    final shouldDiscard = await showBackConfirmationDialog(
+      context,
+      message:
+          "Your uploaded documents won't be saved.\nYou'll need to complete this step again when you continue.",
+    );
+    if (shouldDiscard == true && mounted) {
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(AppRouter.chooseRole, (r) => false);
+    }
+  }
+
   String _fileName(File? file) {
     if (file == null) return '';
     final normalized = file.path.replaceAll('\\', '/');
@@ -214,9 +219,14 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
         _isSelfieBusy || _isPanBusy || _isPoliceBusy || onboarding.isSubmitting;
     final isBusy = _isInitialLoading || onboarding.isBootstrapping;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF0B2842),
-      body: SafeArea(
+    return WillPopScope(
+      onWillPop: () async {
+        await _showBackDialog();
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0B2842),
+        body: SafeArea(
         child: Column(
           children: <Widget>[
             Container(
@@ -225,8 +235,7 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
               child: Row(
                 children: <Widget>[
                   IconButton(
-                    onPressed: () => Navigator.of(context)
-                        .pushReplacementNamed(AppRouter.onboardingStep2),
+                    onPressed: _showBackDialog,
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
                   ),
                   const SizedBox(width: 4),
@@ -526,6 +535,7 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
           ],
         ),
       ),
+    ),
     );
   }
 
