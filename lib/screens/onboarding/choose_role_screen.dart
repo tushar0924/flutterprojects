@@ -21,19 +21,12 @@ class _ChooseRoleScreenState extends ConsumerState<ChooseRoleScreen> {
     try {
       await ref
           .read(partnerOnboardingProvider.notifier)
-          .bootstrap(loadServices: true);
+          .bootstrapFromChooseRole();
       if (!mounted) return;
 
       final onboarding = ref.read(partnerOnboardingProvider);
       final step = onboarding.currentStep;
-      // If all steps are complete, go directly to verification pending (step 5).
-      // Otherwise always start the flow from step 2 so the user completes
-      // every step in order: 2 → 3 → 4 → 5.
-      final route =
-          (step == PartnerOnboardingStep.verificationPending ||
-              step == PartnerOnboardingStep.home)
-          ? onboardingRouteForStep(step)
-          : AppRouter.onboardingStep2;
+        final route = onboardingRouteForStep(step);
       // Always clear the full back stack so login is never reachable
       // via the back button while inside the onboarding flow.
       Navigator.of(context).pushNamedAndRemoveUntil(route, (r) => false);

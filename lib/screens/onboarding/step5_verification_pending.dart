@@ -25,7 +25,7 @@ class _OnboardingStep5State extends ConsumerState<OnboardingStep5> {
   }
 
   Future<void> _loadStatus() async {
-    await ref.read(partnerOnboardingProvider.notifier).bootstrap();
+    await ref.read(partnerOnboardingProvider.notifier).refreshStatus();
     if (!mounted) return;
 
     final onboarding = ref.read(partnerOnboardingProvider);

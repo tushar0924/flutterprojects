@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../providers/partner_onboarding_provider.dart';
 import '../../routes/app_router.dart';
 import '../../session/session_manager.dart';
 
@@ -30,19 +29,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
     if (!isLoggedIn) {
       Navigator.of(context).pushReplacementNamed(AppRouter.login);
-      return;
-    }
-
-    final role = (await session.getUserRole() ?? '').trim().toUpperCase();
-    if (!mounted) return;
-
-    if (role == 'HELPER') {
-      await ref.read(partnerOnboardingProvider.notifier).bootstrap();
-      if (!mounted) return;
-
-      final onboarding = ref.read(partnerOnboardingProvider);
-      final nextRoute = helperLaunchRouteForState(onboarding);
-      Navigator.of(context).pushReplacementNamed(nextRoute);
       return;
     }
 

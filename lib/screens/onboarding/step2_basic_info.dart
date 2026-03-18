@@ -52,9 +52,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
   }
 
   Future<void> _loadInitialState() async {
-    await ref
-        .read(partnerOnboardingProvider.notifier)
-        .bootstrap(loadServices: true);
+    await ref.read(partnerOnboardingProvider.notifier).bootstrapFromChooseRole();
     if (!mounted) return;
 
     final onboarding = ref.read(partnerOnboardingProvider);

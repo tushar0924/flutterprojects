@@ -16,6 +16,25 @@ class ServiceModel {
 
 enum PartnerOnboardingStep { basicInfo, kyc, bank, verificationPending, home }
 
+PartnerOnboardingStep? onboardingStepFromCurrentStep(int currentStep) {
+  switch (currentStep) {
+    case 2:
+      return PartnerOnboardingStep.basicInfo;
+    case 3:
+      return PartnerOnboardingStep.kyc;
+    case 4:
+      return PartnerOnboardingStep.bank;
+    case 5:
+      return PartnerOnboardingStep.verificationPending;
+    case 0:
+    case 1:
+      return null;
+    default:
+      if (currentStep > 5) return PartnerOnboardingStep.home;
+      return null;
+  }
+}
+
 String onboardingRouteForStep(PartnerOnboardingStep step) {
   switch (step) {
     case PartnerOnboardingStep.basicInfo:
@@ -80,6 +99,7 @@ bool onboardingStatusNeedsReview(String rawStatus) {
 }
 
 PartnerOnboardingStep resolvePartnerOnboardingStep({
+  int? backendCurrentStep,
   required String rawStatus,
   required bool profileCompleted,
   required bool kycCompleted,
@@ -89,6 +109,12 @@ PartnerOnboardingStep resolvePartnerOnboardingStep({
 
   if (onboardingStatusIsApproved(status)) {
     return PartnerOnboardingStep.home;
+  }
+  final currentStepResolved = backendCurrentStep == null
+      ? null
+      : onboardingStepFromCurrentStep(backendCurrentStep);
+  if (currentStepResolved != null) {
+    return currentStepResolved;
   }
   // Each step must be completed before advancing, regardless of server status
   // string. This prevents a stale status (e.g. PENDING_KYC after KYC upload
@@ -121,6 +147,7 @@ class PartnerOnboardingState {
     this.requestId = '',
     this.rejectionReason = '',
     this.submittedAt = '',
+    this.backendCurrentStep,
     this.dashboardData = const <String, dynamic>{},
   });
 
@@ -144,6 +171,7 @@ class PartnerOnboardingState {
   final String requestId;
   final String rejectionReason;
   final String submittedAt;
+  final int? backendCurrentStep;
   final Map<String, dynamic> dashboardData;
 
   String get effectiveStatus {
@@ -161,6 +189,7 @@ class PartnerOnboardingState {
   }
 
   PartnerOnboardingStep get currentStep => resolvePartnerOnboardingStep(
+    backendCurrentStep: backendCurrentStep,
     rawStatus: effectiveStatus,
     profileCompleted: profileCompleted,
     kycCompleted: kycCompleted,
@@ -190,6 +219,7 @@ class PartnerOnboardingState {
     String? requestId,
     String? rejectionReason,
     String? submittedAt,
+    int? backendCurrentStep,
     Map<String, dynamic>? dashboardData,
   }) {
     return PartnerOnboardingState(
@@ -214,6 +244,7 @@ class PartnerOnboardingState {
       requestId: requestId ?? this.requestId,
       rejectionReason: rejectionReason ?? this.rejectionReason,
       submittedAt: submittedAt ?? this.submittedAt,
+      backendCurrentStep: backendCurrentStep ?? this.backendCurrentStep,
       dashboardData: dashboardData ?? this.dashboardData,
     );
   }
@@ -247,6 +278,41 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
         servicesPayload: results[1],
         profilePayload: results[2],
         dashboardPayload: results[3],
+      );
+    } finally {
+      state = state.copyWith(isBootstrapping: false, hasLoaded: true);
+    }
+  }
+
+  Future<void> bootstrapFromChooseRole() async {
+    if (state.isBootstrapping) return;
+    state = state.copyWith(isBootstrapping: true, errorMessage: '');
+
+    try {
+      final results = await Future.wait<Map<String, dynamic>>([
+        _safeGetOnboardingStatus(),
+        _safeGetServices(),
+      ]);
+
+      final statusPayload = results[0];
+      final servicesPayload = results[1];
+
+      _mergeStatusPayload(statusPayload);
+
+      final serviceNames = _extractServices(servicesPayload);
+      final statusData = statusPayload['data'];
+      final statusUser = statusData is Map ? statusData['user'] : null;
+      final fullNameFromStatus = statusUser is Map
+          ? (statusUser['fullName'] as String? ?? '').trim()
+          : '';
+
+      state = state.copyWith(
+        availableServices: serviceNames.isNotEmpty
+            ? serviceNames
+            : state.availableServices,
+        fullName: fullNameFromStatus.isNotEmpty
+            ? fullNameFromStatus
+            : state.fullName,
       );
     } finally {
       state = state.copyWith(isBootstrapping: false, hasLoaded: true);
@@ -436,13 +502,14 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
     }
   }
 
-  Future<void> refreshStatus() async {
-    final results = await Future.wait<Map<String, dynamic>>([
-      _safeGetOnboardingStatus(),
-      _safeGetOpsDashboard(),
-    ]);
-    _mergeStatusPayload(results[0]);
-    _mergeDashboardPayload(results[1]);
+  Future<void> refreshStatus({bool includeDashboard = false}) async {
+    final statusPayload = await _safeGetOnboardingStatus();
+    _mergeStatusPayload(statusPayload);
+
+    if (!includeDashboard) return;
+
+    final dashboardPayload = await _safeGetOpsDashboard();
+    _mergeDashboardPayload(dashboardPayload);
   }
 
   Future<Map<String, dynamic>> _safeGetOnboardingStatus() async {
@@ -603,6 +670,19 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
       helper['helperId'],
       payload['helperId'],
     ]);
+    final userBag = data['user'];
+    final user = userBag is Map
+        ? Map<String, dynamic>.from(userBag)
+        : const <String, dynamic>{};
+    final fullName = _firstNonEmptyString(<dynamic>[
+      user['fullName'],
+      payload['fullName'],
+    ]);
+    final backendCurrentStep = _extractCurrentStep(<dynamic>[
+      data['currentStep'],
+      helper['currentStep'],
+      payload['currentStep'],
+    ]);
     final requestId = _firstNonEmptyString(<dynamic>[
       payload['requestId'],
       payload['onboardingRequestId'],
@@ -633,12 +713,14 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
       panVerificationStatus: backendKycCompleted
           ? 'VERIFIED'
           : state.panVerificationStatus,
+        fullName: fullName.isNotEmpty ? fullName : state.fullName,
       helperId: helperId.isNotEmpty ? helperId : state.helperId,
       requestId: requestId.isNotEmpty ? requestId : state.requestId,
       rejectionReason: rejectionReason.isNotEmpty
           ? rejectionReason
           : state.rejectionReason,
       submittedAt: submittedAt,
+        backendCurrentStep: backendCurrentStep,
       errorMessage: payload['success'] == false
           ? _messageFromPayload(payload)
           : '',
@@ -691,6 +773,18 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
       return value.trim().toLowerCase() == 'true';
     }
     return false;
+  }
+
+  int? _extractCurrentStep(List<dynamic> values) {
+    for (final value in values) {
+      if (value is int) return value;
+      if (value is num) return value.toInt();
+      if (value is String) {
+        final parsed = int.tryParse(value.trim());
+        if (parsed != null) return parsed;
+      }
+    }
+    return state.backendCurrentStep;
   }
 
   String _firstNonEmptyString(List<dynamic> values) {
