@@ -17,7 +17,7 @@
         android:maxSdkVersion="32"
         tools:replace="android:maxSdkVersion" />
     <application
-        android:label="Helperr4u"
+        android:label="Zynexx"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"

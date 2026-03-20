@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'routes/app_router.dart';
 import 'session/session_manager.dart';
+import 'widgets/connectivity_guard.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +24,13 @@ class MyApp extends StatelessWidget {
       ),
       initialRoute: AppRouter.splash,
       routes: AppRouter.routes(),
+      builder: (context, child) {
+        if (child == null) {
+          return const SizedBox.shrink();
+        }
+
+        return ConnectivityGuard(child: child);
+      },
     );
   }
 }

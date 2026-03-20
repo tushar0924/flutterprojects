@@ -43,6 +43,7 @@ dependencies:
   fluttertoast: ^8.2.1
   geolocator: ^14.0.2
   file_picker: ^10.3.3
+  connectivity_plus: ^6.1.4
 
 dev_dependencies:
   flutter_test:

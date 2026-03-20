@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../providers/partner_provider.dart';
+import '../../../utils/toast_helper.dart';
 import '../job_details_screen.dart';
 import '../upcoming_jobs_screen.dart';
 
@@ -24,6 +25,8 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
   Map<String, dynamic>? _userProfile;
   bool _isLoading = true;
   bool _isOnline = true;
+  bool _isSyncingOnlineStatus = false;
+  bool? _pendingOnlineState;
 
   @override
   void initState() {
@@ -60,13 +63,45 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
   }
 
   Future<void> _toggleOnline() async {
+    if (!mounted) return;
+
+    final nextState = !_isOnline;
+    setState(() => _isOnline = nextState);
+    _pendingOnlineState = nextState;
+
+    // Keep tap response instant and sync server state in the background.
+    await _flushOnlineStatusSyncQueue();
+  }
+
+  Future<void> _flushOnlineStatusSyncQueue() async {
+    if (_isSyncingOnlineStatus) return;
+    _isSyncingOnlineStatus = true;
+
     final partnerRepo = ref.read(partnerRepositoryProvider);
     try {
-      final res = await partnerRepo.updateOpsStatus(isOnline: !_isOnline);
-      if (res['success'] == true && mounted) {
-        setState(() => _isOnline = res['isOnline'] as bool? ?? !_isOnline);
+      while (_pendingOnlineState != null) {
+        final targetState = _pendingOnlineState!;
+        _pendingOnlineState = null;
+
+        try {
+          final res = await partnerRepo.updateOpsStatus(isOnline: targetState);
+          final serverState = res['isOnline'] as bool?;
+
+          if (!mounted) return;
+          if (serverState != null && _pendingOnlineState == null) {
+            setState(() => _isOnline = serverState);
+          }
+        } catch (_) {
+          // Revert only when there isn't a newer user action to apply.
+          if (mounted && _pendingOnlineState == null) {
+            setState(() => _isOnline = !targetState);
+            AppToast.showError('Failed to update status. Please try again.');
+          }
+        }
       }
-    } catch (_) {}
+    } finally {
+      _isSyncingOnlineStatus = false;
+    }
   }
 
   void _openUpcomingJobs(BuildContext context) {
@@ -216,19 +251,26 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _circleButton(icon: Icons.menu, onTap: widget.onMenuTap),
-              Column(
-                children: [
-                  Text(
-                    _isLoading ? '...' : _displayName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w500,
+              GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _toggleOnline,
+                child: Column(
+                  children: [
+                    Text(
+                      _isLoading ? '...' : _displayName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  _OnlineToggle(isOnline: _isOnline, onTap: _toggleOnline),
-                ],
+                    Padding(
+                      // Invisible hit slop around the toggle; visual UI remains unchanged.
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
+                      child: _OnlineToggle(isOnline: _isOnline, onTap: _toggleOnline),
+                    ),
+                  ],
+                ),
               ),
               Stack(
                 children: [
@@ -434,47 +476,70 @@ class _OnlineToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(2),
-        decoration: BoxDecoration(
-          color: const Color(0xFF22C55E).withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+    return SizedBox(
+      height: 22,
+      width: 65,
+      child: Stack(
+        alignment: Alignment.center,
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            top: -11,
+            bottom: -11,
+            left: -5,
+            right: -5,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onTap,
+              child: const SizedBox.expand(),
+            ),
+          ),
+          IgnorePointer(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              width: 65,
+              height: 22,
               decoration: BoxDecoration(
-                color: isOnline ? const Color(0xFF22C55E) : Colors.grey,
-                borderRadius: BorderRadius.circular(15),
+                color: isOnline ? const Color(0xFF22C55E) : const Color(0xFF667085),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Text(
-                isOnline ? 'Online' : 'Offline',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 9,
-                  fontWeight: FontWeight.bold,
-                ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  AnimatedAlign(
+                    duration: const Duration(milliseconds: 160),
+                    alignment: isOnline ? const Alignment(-0.6, 0) : const Alignment(0.6, 0),
+                    child: Text(
+                      isOnline ? 'Online' : 'Offline',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  AnimatedAlign(
+                    duration: const Duration(milliseconds: 160),
+                    alignment: isOnline ? Alignment.centerRight : Alignment.centerLeft,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 2),
+                      width: 16,
+                      height: 16,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 4),
-            CircleAvatar(
-              radius: 4,
-              backgroundColor: isOnline ? Colors.white : Colors.white54,
-            ),
-            const SizedBox(width: 4),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
-}
-
-class _StatCard extends StatelessWidget {
+}class _StatCard extends StatelessWidget {
   final IconData icon;
   final String value;
   final String label;
