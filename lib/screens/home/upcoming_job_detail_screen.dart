@@ -7,12 +7,31 @@ class UpcomingJobDetailScreen extends StatelessWidget {
     required this.rating,
     required this.serviceType,
     required this.earnings,
+    required this.bookingId,
+    required this.dayLabel,
+    required this.timeLabel,
+    required this.durationLabel,
+    required this.address,
   });
 
   final String customerName;
   final String rating;
   final String serviceType;
   final String earnings;
+  final int bookingId;
+  final String dayLabel;
+  final String timeLabel;
+  final String durationLabel;
+  final String address;
+
+  String get _timeAndDuration {
+    final parts = [
+      timeLabel.trim(),
+      durationLabel.trim(),
+    ].where((item) => item.isNotEmpty).toList();
+    if (parts.isEmpty) return '—';
+    return parts.join(' • ');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,7 +94,10 @@ class UpcomingJobDetailScreen extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF0EA5E9),
                   borderRadius: BorderRadius.circular(6),
@@ -92,8 +114,8 @@ class UpcomingJobDetailScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Booking ID: 1762415711831',
+          Text(
+            'Booking ID: $bookingId',
             style: TextStyle(color: Color(0xFF667085), fontSize: 14),
           ),
           const Text(
@@ -104,22 +126,22 @@ class UpcomingJobDetailScreen extends StatelessWidget {
             padding: EdgeInsets.symmetric(vertical: 20),
             child: Divider(color: Color(0xFFEAECF0), height: 1),
           ),
-          const _ServiceInfoRow(
+          _ServiceInfoRow(
             icon: Icons.calendar_today_outlined,
             label: 'Date',
-            value: 'Thursday, November 6, 2025',
+            value: dayLabel.isNotEmpty ? dayLabel : '—',
           ),
           const SizedBox(height: 16),
-          const _ServiceInfoRow(
+          _ServiceInfoRow(
             icon: Icons.access_time,
             label: 'Time & Duration',
-            value: '06:00 AM • 8 hours',
+            value: _timeAndDuration,
           ),
           const SizedBox(height: 16),
-          const _ServiceInfoRow(
+          _ServiceInfoRow(
             icon: Icons.location_on_outlined,
             label: 'Service Location',
-            value: 'Location....\nJaipur, India',
+            value: address.isNotEmpty ? address : '—',
           ),
         ],
       ),
@@ -265,7 +287,13 @@ class UpcomingJobDetailScreen extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('• ', style: TextStyle(color: Color(0xFF2563EB), fontWeight: FontWeight.bold)),
+          const Text(
+            '• ',
+            style: TextStyle(
+              color: Color(0xFF2563EB),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           Expanded(
             child: Text(
               text,

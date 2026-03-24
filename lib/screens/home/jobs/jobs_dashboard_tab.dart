@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dropdown_button2/dropdown_button2.dart';
 
+import '../../../models/upcoming_job_model.dart';
 import '../../../providers/partner_provider.dart';
 
 import '../upcoming_job_detail_screen.dart';
 import 'jobs_data.dart';
-import 'jobs_models.dart';
 
 class JobsDashboardTab extends ConsumerStatefulWidget {
   const JobsDashboardTab({super.key});
@@ -15,11 +16,13 @@ class JobsDashboardTab extends ConsumerStatefulWidget {
 }
 
 class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
-  String _selectedServiceType = kServiceTypeFilters.first;
-  String _selectedDay = kDayFilters.first;
-  List<Map<String, dynamic>> _apiJobs = [];
+  String? _selectedServiceType;
+  String? _selectedDay;
+  List<UpcomingJobModel> _apiJobs = [];
   bool _isLoading = true;
   String? _jobsApiMessage;
+  int _totalUpcomingJobs = 0;
+  int _todayJobsCount = 0;
 
   @override
   void initState() {
@@ -34,17 +37,19 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
     });
 
     final repo = ref.read(partnerRepositoryProvider);
-    final res = await repo.getPublicJobs(limit: 50);
+    final res = await repo.getUpcomingBookings(
+      limit: 50,
+      day: _dayParam(),
+      serviceType: _serviceTypeParam(),
+    );
     if (!mounted) return;
 
-    final success = res['success'] == true;
+    final success = res.success;
     if (success) {
-      final jobsList =
-          (res['jobs'] as List<dynamic>?) ??
-          (res['data'] as List<dynamic>?) ??
-          const <dynamic>[];
       setState(() {
-        _apiJobs = jobsList.whereType<Map<String, dynamic>>().toList();
+        _apiJobs = res.jobs;
+        _totalUpcomingJobs = res.totalUpcomingJobs;
+        _todayJobsCount = res.todayJobsCount;
         _isLoading = false;
       });
       return;
@@ -52,67 +57,39 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
 
     setState(() {
       _apiJobs = [];
-      _jobsApiMessage = res['message'] as String?;
+      _totalUpcomingJobs = 0;
+      _todayJobsCount = 0;
+      _jobsApiMessage = res.message;
       _isLoading = false;
     });
   }
 
-  List<UpcomingJobItem> get _jobs {
-    if (_apiJobs.isEmpty) return kUpcomingJobs;
-    return _apiJobs.map(_mapApiJob).toList();
-  }
+  List<UpcomingJobModel> get _jobs => _apiJobs;
 
-  int get _availableTodayCount {
-    final now = DateTime.now();
-    int count = 0;
-    for (final j in _apiJobs) {
-      final raw = j['scheduledAt'] ?? j['schedule'] ?? j['date'];
-      if (raw is! String) continue;
-      final dt = DateTime.tryParse(raw);
-      if (dt != null &&
-          dt.year == now.year &&
-          dt.month == now.month &&
-          dt.day == now.day) {
-        count++;
-      }
+  String? _dayParam() {
+    switch (_selectedDay) {
+      case 'Today':
+        return 'today';
+      case 'Tomorrow':
+        return 'tomorrow';
+      case 'This Week':
+        return 'week';
+      default:
+        return null;
     }
-    return count;
   }
 
-  String _formatAmount(dynamic raw) {
-    if (raw == null) return '₹0';
-    if (raw is num) return '₹${raw.toStringAsFixed(raw % 1 == 0 ? 0 : 2)}';
-    return '₹$raw';
-  }
-
-  UpcomingJobItem _mapApiJob(Map<String, dynamic> job) {
-    final customer = job['customer'] as Map<String, dynamic>?;
-    final service = job['service'] as Map<String, dynamic>?;
-    final scheduleRaw = job['scheduledAt'] ?? job['schedule'] ?? job['date'];
-    final durationRaw =
-        job['estimatedHours'] ?? job['durationHours'] ?? job['duration'];
-
-    return UpcomingJobItem(
-      name:
-          (customer?['name'] ??
-                  job['customerName'] ??
-                  job['title'] ??
-                  'Customer')
-              .toString(),
-      rating: (customer?['rating'] ?? job['rating'] ?? '4.5').toString(),
-      serviceType:
-          (service?['name'] ??
-                  job['serviceType'] ??
-                  job['category'] ??
-                  'Service')
-              .toString(),
-      schedule: scheduleRaw?.toString() ?? '—',
-      duration: durationRaw != null ? '$durationRaw hours duration' : '—',
-      address: (job['address'] ?? job['location'] ?? '—').toString(),
-      amount: _formatAmount(
-        job['totalAmount'] ?? job['amount'] ?? job['budget'],
-      ),
-    );
+  String? _serviceTypeParam() {
+    switch (_selectedServiceType) {
+      case 'Maid':
+        return 'MAID';
+      case 'Cook':
+        return 'COOK';
+      case 'Driver':
+        return 'DRIVER';
+      default:
+        return null;
+    }
   }
 
   @override
@@ -165,21 +142,34 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
                     Row(
                       children: [
                         Expanded(
-                          child: _FilterDropdown(
-                            value: _selectedServiceType,
-                            items: kServiceTypeFilters,
-                            onChanged: (value) {
-                              setState(() => _selectedServiceType = value);
+                          child: _FilterDropdown2(
+                            title: kServiceTypeFilters.first,
+                            selectedValue: _selectedServiceType,
+                            items: kServiceTypeFilters.skip(1).toList(),
+                            onChanged: (value) async {
+                              setState(() {
+                                _selectedServiceType =
+                                    _selectedServiceType == value
+                                    ? null
+                                    : value;
+                              });
+                              await _loadJobs();
                             },
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: _FilterDropdown(
-                            value: _selectedDay,
-                            items: kDayFilters,
-                            onChanged: (value) {
-                              setState(() => _selectedDay = value);
+                          child: _FilterDropdown2(
+                            title: kDayFilters.first,
+                            selectedValue: _selectedDay,
+                            items: kDayFilters.skip(1).toList(),
+                            onChanged: (value) async {
+                              setState(() {
+                                _selectedDay = _selectedDay == value
+                                    ? null
+                                    : value;
+                              });
+                              await _loadJobs();
                             },
                           ),
                         ),
@@ -190,9 +180,7 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
                       children: [
                         Expanded(
                           child: _StatBox(
-                            title: _isLoading
-                                ? '...'
-                                : '${_apiJobs.isEmpty ? 0 : _availableTodayCount}',
+                            title: _isLoading ? '...' : '$_todayJobsCount',
                             subtitle: 'Available Today',
                             backgroundColor: Color(0xFFEAF3FF),
                             borderColor: Color(0xFFBBD8FF),
@@ -201,7 +189,7 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
                         SizedBox(width: 8),
                         Expanded(
                           child: _StatBox(
-                            title: _isLoading ? '...' : '${_jobs.length}',
+                            title: _isLoading ? '...' : '$_totalUpcomingJobs',
                             subtitle: 'Total Jobs Available',
                             backgroundColor: Color(0xFFEAF9E9),
                             borderColor: Color(0xFFB7E6B4),
@@ -223,31 +211,50 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
                       ),
                     ],
                     const SizedBox(height: 10),
-                    ListView.separated(
-                      itemCount: _jobs.length,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      separatorBuilder: (_, index) =>
-                          const SizedBox(height: 10),
-                      itemBuilder: (context, index) {
-                        final UpcomingJobItem job = _jobs[index];
-                        return _JobCard(
-                          job: job,
-                          onViewDetails: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => UpcomingJobDetailScreen(
-                                  customerName: job.name,
-                                  rating: job.rating,
-                                  serviceType: job.serviceType,
-                                  earnings: job.amount,
+                    if (_jobs.isEmpty && !_isLoading)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 24),
+                        child: Center(
+                          child: Text(
+                            'No upcoming jobs found',
+                            style: TextStyle(
+                              color: Color(0xFF667085),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      ListView.separated(
+                        itemCount: _jobs.length,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        separatorBuilder: (_, index) =>
+                            const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final UpcomingJobModel job = _jobs[index];
+                          return _JobCard(
+                            job: job,
+                            onViewDetails: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => UpcomingJobDetailScreen(
+                                    customerName: job.customerName,
+                                    rating: job.displayRating,
+                                    serviceType: job.serviceName,
+                                    earnings: job.displayAmount,
+                                    bookingId: job.bookingId,
+                                    dayLabel: job.dayLabel,
+                                    timeLabel: job.timeLabel,
+                                    durationLabel: job.displayDuration,
+                                    address: job.address,
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
+                              );
+                            },
+                          );
+                        },
+                      ),
                   ],
                 ),
               ),
@@ -259,53 +266,117 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
   }
 }
 
-class _FilterDropdown extends StatelessWidget {
-  const _FilterDropdown({
-    required this.value,
+class _FilterDropdown2 extends StatelessWidget {
+  const _FilterDropdown2({
+    required this.title,
+    required this.selectedValue,
     required this.items,
     required this.onChanged,
   });
 
-  final String value;
+  final String title;
+  final String? selectedValue;
   final List<String> items;
   final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 34,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: const Color(0xFFD0D5DD)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          icon: const Icon(
-            Icons.keyboard_arrow_down,
-            size: 18,
-            color: Color(0xFF98A2B3),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return DropdownButtonHideUnderline(
+          child: DropdownButton2<String>(
+            isExpanded: true,
+            customButton: Container(
+              height: 34,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFD0D5DD)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      selectedValue ?? title,
+                      style: const TextStyle(
+                        color: Color(0xFF1D2939),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.keyboard_arrow_down,
+                    size: 18,
+                    color: Color(0xFF98A2B3),
+                  ),
+                ],
+              ),
+            ),
+            items: items
+                .map(
+                  (item) => DropdownMenuItem<String>(
+                    value: item,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item,
+                            style: const TextStyle(
+                              color: Color(0xFF1D2939),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          width: 16,
+                          height: 16,
+                          decoration: BoxDecoration(
+                            color: selectedValue == item
+                                ? const Color(0xFF0EA5E9)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(2),
+                            border: Border.all(
+                              color: selectedValue == item
+                                  ? const Color(0xFF0EA5E9)
+                                  : const Color(0xFF98A2B3),
+                              width: 1,
+                            ),
+                          ),
+                          child: selectedValue == item
+                              ? const Icon(
+                                  Icons.check,
+                                  size: 12,
+                                  color: Colors.white,
+                                )
+                              : null,
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (next) {
+              if (next != null) onChanged(next);
+            },
+            dropdownStyleData: DropdownStyleData(
+              width: constraints.maxWidth,
+              offset: const Offset(0, -2),
+              maxHeight: 124,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFD0D5DD)),
+              ),
+            ),
+            menuItemStyleData: const MenuItemStyleData(height: 34),
           ),
-          isExpanded: true,
-          borderRadius: BorderRadius.circular(8),
-          style: const TextStyle(
-            fontSize: 12,
-            color: Color(0xFF475467),
-            fontWeight: FontWeight.w500,
-          ),
-          items: items
-              .map(
-                (item) =>
-                    DropdownMenuItem<String>(value: item, child: Text(item)),
-              )
-              .toList(),
-          onChanged: (next) {
-            if (next != null) onChanged(next);
-          },
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -362,7 +433,7 @@ class _StatBox extends StatelessWidget {
 class _JobCard extends StatelessWidget {
   const _JobCard({required this.job, required this.onViewDetails});
 
-  final UpcomingJobItem job;
+  final UpcomingJobModel job;
   final VoidCallback onViewDetails;
 
   @override
@@ -394,7 +465,7 @@ class _JobCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      job.name,
+                      job.customerName,
                       style: const TextStyle(
                         color: Color(0xFF101828),
                         fontSize: 12.5,
@@ -411,7 +482,7 @@ class _JobCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 3),
                         Text(
-                          job.rating,
+                          job.displayRating,
                           style: const TextStyle(
                             color: Color(0xFF475467),
                             fontSize: 10.5,
@@ -432,7 +503,7 @@ class _JobCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  job.serviceType,
+                  job.serviceName,
                   style: const TextStyle(
                     color: Color(0xFF0B2545),
                     fontSize: 10,
@@ -443,15 +514,21 @@ class _JobCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          _DetailRow(icon: Icons.calendar_today_outlined, value: job.schedule),
-          _DetailRow(icon: Icons.access_time_outlined, value: job.duration),
+          _DetailRow(
+            icon: Icons.calendar_today_outlined,
+            value: job.displaySchedule,
+          ),
+          _DetailRow(
+            icon: Icons.access_time_outlined,
+            value: job.displayDuration,
+          ),
           _DetailRow(icon: Icons.location_on_outlined, value: job.address),
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                job.amount,
+                job.displayAmount,
                 style: const TextStyle(
                   color: Color(0xFF0EA5E9),
                   fontSize: 35,

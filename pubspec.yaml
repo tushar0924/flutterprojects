@@ -44,6 +44,7 @@ dependencies:
   geolocator: ^14.0.2
   file_picker: ^10.3.3
   connectivity_plus: ^6.1.4
+  dropdown_button2: ^2.3.9
 
 dev_dependencies:
   flutter_test:

@@ -28,9 +28,14 @@ class PartnerApiEndpoint {
 
   static const String opsDashboard = 'partner/ops/dashboard';
   static const String opsStatus = 'partner/ops/status';
+  static const String profile = 'partner/profile';
+  static const String address = 'partner/address';
+  static const String reviews = 'partner/reviews';
+  static const String services = 'partner/services';
 
   static const String publicJobs = 'partner/jobs';
   static const String bookings = 'partner/bookings';
+  static const String upcomingBookings = 'partner/bookings/upcoming';
 
   static String bookingDetail(int bookingId) => '$bookings/$bookingId';
 }

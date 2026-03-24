@@ -1,20 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../models/upcoming_job_model.dart';
 import '../../../../providers/partner_provider.dart';
 import '../../../utils/toast_helper.dart';
 import '../job_details_screen.dart';
-import '../upcoming_jobs_screen.dart';
+import '../upcoming_job_detail_screen.dart';
 
 class HomeTabContent extends ConsumerStatefulWidget {
   const HomeTabContent({
     super.key,
     required this.onMenuTap,
     required this.onNotificationTap,
+    required this.onViewAllJobs,
   });
 
   final VoidCallback onMenuTap;
   final VoidCallback onNotificationTap;
+  final VoidCallback onViewAllJobs;
 
   @override
   ConsumerState<HomeTabContent> createState() => _HomeTabContentState();
@@ -27,6 +30,8 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
   bool _isOnline = true;
   bool _isSyncingOnlineStatus = false;
   bool? _pendingOnlineState;
+  List<UpcomingJobModel> _upcomingJobs = [];
+  int _totalUpcomingJobs = 0;
 
   @override
   void initState() {
@@ -56,6 +61,18 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
               (_dashboard!['helper'] as Map<String, dynamic>?)?['isOnline']
                   as bool? ??
               true;
+        });
+      }
+
+      final upcomingRes = await partnerRepo.getUpcomingBookings(limit: 2);
+      if (mounted) {
+        setState(() {
+          _upcomingJobs = upcomingRes.success
+              ? upcomingRes.jobs.take(2).toList()
+              : <UpcomingJobModel>[];
+          _totalUpcomingJobs = upcomingRes.success
+              ? upcomingRes.totalUpcomingJobs
+              : 0;
         });
       }
     } catch (_) {}
@@ -102,12 +119,6 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
     } finally {
       _isSyncingOnlineStatus = false;
     }
-  }
-
-  void _openUpcomingJobs(BuildContext context) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const UpcomingJobsScreen()));
   }
 
   Map<String, dynamic> _extractDashboard(Map<String, dynamic> payload) {
@@ -163,11 +174,11 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
     return 0;
   }
 
-  String get _headlineEarningsLabel {
-    final hasOldWeek =
-        (_dashboard?['earningsSummary'] as Map<String, dynamic>?)?['week'] !=
-        null;
-    return hasOldWeek ? 'Week Earning' : 'Lifetime Earning';
+  String get _totalEarningLabel {
+    if (_headlineEarnings % 1 == 0) {
+      return '₹${_headlineEarnings.toInt()}';
+    }
+    return '₹${_headlineEarnings.toStringAsFixed(2)}';
   }
 
   @override
@@ -194,7 +205,7 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         GestureDetector(
-                          onTap: () => _openUpcomingJobs(context),
+                          onTap: widget.onViewAllJobs,
                           child: const Text(
                             'Upcoming Jobs',
                             style: TextStyle(
@@ -205,7 +216,7 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
                           ),
                         ),
                         GestureDetector(
-                          onTap: () => _openUpcomingJobs(context),
+                          onTap: widget.onViewAllJobs,
                           child: const Text(
                             'View All',
                             style: TextStyle(
@@ -239,12 +250,7 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
           bottomRight: Radius.circular(24),
         ),
       ),
-      padding: const EdgeInsets.fromLTRB(
-        16,
-        40,
-        16,
-        20,
-      ), // Tightened top/bottom
+      padding: const EdgeInsets.fromLTRB(8, 40, 8, 20), // Tightened top/bottom
       child: Column(
         children: [
           Row(
@@ -267,7 +273,10 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
                     Padding(
                       // Invisible hit slop around the toggle; visual UI remains unchanged.
                       padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
-                      child: _OnlineToggle(isOnline: _isOnline, onTap: _toggleOnline),
+                      child: _OnlineToggle(
+                        isOnline: _isOnline,
+                        onTap: _toggleOnline,
+                      ),
                     ),
                   ],
                 ),
@@ -294,28 +303,31 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
               ),
             ],
           ),
-          const SizedBox(height: 20), // Reduced from 25
-          Row(
-            children: [
-              _StatCard(
-                icon: Icons.business_center_outlined,
-                value: _isLoading ? '...' : '$_pendingCount',
-                label: 'Pending Requests',
-                onTap: () => _openUpcomingJobs(context),
-              ),
-              const SizedBox(width: 8),
-              _StatCard(
-                icon: Icons.check_circle_outline,
-                value: _isLoading ? '...' : '$_todayCompleted',
-                label: 'Today Completed',
-              ),
-              const SizedBox(width: 8),
-              _StatCard(
-                icon: Icons.currency_rupee,
-                value: _isLoading ? '...' : '₹$_headlineEarnings',
-                label: _headlineEarningsLabel,
-              ),
-            ],
+          const SizedBox(height: 18),
+          SizedBox(
+            height: 124,
+            child: Row(
+              children: [
+                _StatCard(
+                  icon: Icons.work_outline,
+                  value: _isLoading ? '...' : '$_totalUpcomingJobs',
+                  label: 'Upcoming Jobs',
+                  onTap: widget.onViewAllJobs,
+                ),
+                const SizedBox(width: 12),
+                _StatCard(
+                  icon: Icons.check_circle_outline,
+                  value: _isLoading ? '...' : '$_todayCompleted',
+                  label: 'Jobs Completed',
+                ),
+                const SizedBox(width: 12),
+                _StatCard(
+                  icon: Icons.currency_rupee,
+                  value: _isLoading ? '...' : _totalEarningLabel,
+                  label: 'Total Earning',
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -454,15 +466,53 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
   }
 
   Widget _buildUpcomingJobsList() {
+    if (!_isLoading && _upcomingJobs.isEmpty) {
+      return Container(
+        width: double.infinity,
+        height: 90,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFEAECF0)),
+        ),
+        child: const Text(
+          'No upcoming jobs found',
+          style: TextStyle(color: Color(0xFF667085), fontSize: 13),
+        ),
+      );
+    }
+
     return SizedBox(
       height: 145, // Reduced from 170 to save space
       child: ListView(
         scrollDirection: Axis.horizontal,
         clipBehavior: Clip.none,
-        children: const [
-          _UpcomingJobCard(),
-          SizedBox(width: 12),
-          _UpcomingJobCard(),
+        children: [
+          for (int i = 0; i < _upcomingJobs.length; i++) ...[
+            _UpcomingJobCard(
+              job: _upcomingJobs[i],
+              onTap: () {
+                final selected = _upcomingJobs[i];
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => UpcomingJobDetailScreen(
+                      customerName: selected.customerName,
+                      rating: selected.displayRating,
+                      serviceType: selected.serviceName,
+                      earnings: selected.displayAmount,
+                      bookingId: selected.bookingId,
+                      dayLabel: selected.dayLabel,
+                      timeLabel: selected.timeLabel,
+                      durationLabel: selected.displayDuration,
+                      address: selected.address,
+                    ),
+                  ),
+                );
+              },
+            ),
+            if (i < _upcomingJobs.length - 1) const SizedBox(width: 12),
+          ],
         ],
       ),
     );
@@ -500,7 +550,9 @@ class _OnlineToggle extends StatelessWidget {
               width: 65,
               height: 22,
               decoration: BoxDecoration(
-                color: isOnline ? const Color(0xFF22C55E) : const Color(0xFF667085),
+                color: isOnline
+                    ? const Color(0xFF22C55E)
+                    : const Color(0xFF667085),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Stack(
@@ -508,7 +560,9 @@ class _OnlineToggle extends StatelessWidget {
                 children: [
                   AnimatedAlign(
                     duration: const Duration(milliseconds: 160),
-                    alignment: isOnline ? const Alignment(-0.6, 0) : const Alignment(0.6, 0),
+                    alignment: isOnline
+                        ? const Alignment(-0.6, 0)
+                        : const Alignment(0.6, 0),
                     child: Text(
                       isOnline ? 'Online' : 'Offline',
                       style: const TextStyle(
@@ -520,7 +574,9 @@ class _OnlineToggle extends StatelessWidget {
                   ),
                   AnimatedAlign(
                     duration: const Duration(milliseconds: 160),
-                    alignment: isOnline ? Alignment.centerRight : Alignment.centerLeft,
+                    alignment: isOnline
+                        ? Alignment.centerRight
+                        : Alignment.centerLeft,
                     child: Container(
                       margin: const EdgeInsets.symmetric(horizontal: 2),
                       width: 16,
@@ -539,7 +595,9 @@ class _OnlineToggle extends StatelessWidget {
       ),
     );
   }
-}class _StatCard extends StatelessWidget {
+}
+
+class _StatCard extends StatelessWidget {
   final IconData icon;
   final String value;
   final String label;
@@ -557,32 +615,46 @@ class _OnlineToggle extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(
-            vertical: 12,
-            horizontal: 4,
-          ), // Tighter padding
+          padding: const EdgeInsets.fromLTRB(8, 6, 8, 5),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-            borderRadius: BorderRadius.circular(10),
+            color: Colors.white.withValues(alpha: 0.04),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
+            borderRadius: BorderRadius.circular(17),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.white.withValues(alpha: 0.10),
+                blurRadius: 0,
+                spreadRadius: 0.6,
+              ),
+            ],
           ),
           child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, color: Colors.white, size: 20),
-              const SizedBox(height: 4),
-              Text(
-                value,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Icon(icon, color: Colors.white, size: 25),
+              ),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 32,
+                    fontWeight: FontWeight.w400,
+                    height: 1,
+                  ),
                 ),
               ),
               Text(
                 label,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.6),
-                  fontSize: 9,
+                  color: Colors.white.withValues(alpha: 0.96),
+                  fontSize: 30 / 3,
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: 0.1,
                 ),
               ),
             ],
@@ -619,76 +691,88 @@ class _DetailRow extends StatelessWidget {
 }
 
 class _UpcomingJobCard extends StatelessWidget {
-  const _UpcomingJobCard();
+  const _UpcomingJobCard({required this.job, required this.onTap});
+
+  final UpcomingJobModel job;
+  final VoidCallback onTap;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 260,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFEAECF0)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const CircleAvatar(
-            radius: 16,
-            backgroundColor: Color(0xFF0B2239),
-            child: Icon(Icons.person_outline, color: Colors.white, size: 18),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Priya Sharma',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0EA5E9),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Text(
-                        'Maid',
-                        style: TextStyle(color: Colors.white, fontSize: 9),
-                      ),
-                    ),
-                  ],
-                ),
-                const Row(
-                  children: [
-                    Icon(Icons.star, color: Colors.orange, size: 12),
-                    Text(
-                      ' 4.9',
-                      style: TextStyle(fontSize: 11, color: Colors.grey),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                _miniDetail(
-                  Icons.calendar_today,
-                  'Tomorrow • 08-00 AM - 11 AM',
-                ),
-                _miniDetail(Icons.access_time, '3 hours duration'),
-                _miniDetail(Icons.currency_rupee, '₹750 per hour'),
-              ],
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 260,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFEAECF0)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const CircleAvatar(
+              radius: 16,
+              backgroundColor: Color(0xFF0B2239),
+              child: Icon(Icons.person_outline, color: Colors.white, size: 18),
             ),
-          ),
-        ],
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          job.customerName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0EA5E9),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          job.serviceName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      const Icon(Icons.star, color: Colors.orange, size: 12),
+                      Text(
+                        ' ${job.displayRating}',
+                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  _miniDetail(Icons.calendar_today, job.displaySchedule),
+                  _miniDetail(Icons.access_time, job.displayDuration),
+                  _miniDetail(Icons.currency_rupee, job.displayAmount),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

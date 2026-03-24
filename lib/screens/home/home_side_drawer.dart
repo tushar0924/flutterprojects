@@ -6,7 +6,12 @@ import '../../providers/auth_provider.dart';
 import '../../session/session_manager.dart';
 import '../../routes/app_router.dart';
 import '../../utils/toast_helper.dart';
+import '../../widgets/logout_confirmation_dialog.dart';
+import '../address/edit_address_screen.dart';
 import '../help_support/help_support_screen.dart';
+import '../profile/partner_profile_screen.dart';
+import '../reviews/my_reviews_screen.dart';
+import '../services/manage_services_screen.dart';
 
 class HomeSideDrawer extends ConsumerStatefulWidget {
   const HomeSideDrawer({super.key});
@@ -51,38 +56,7 @@ class _HomeSideDrawerState extends ConsumerState<HomeSideDrawer> {
   Future<void> _logout() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Logout',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-        ),
-        content: const Text(
-          'Are you sure you want to logout?',
-          style: TextStyle(color: Colors.black54, fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Colors.black54, fontWeight: FontWeight.w500),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFD92D20),
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text(
-              'Logout',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
+      builder: (ctx) => const LogoutConfirmationDialog(),
     );
 
     if (confirmed != true) return;
@@ -92,10 +66,9 @@ class _HomeSideDrawerState extends ConsumerState<HomeSideDrawer> {
       final session = SessionManager();
       await session.clearSession();
       if (!mounted) return;
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        AppRouter.login,
-        (route) => false,
-      );
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(AppRouter.login, (route) => false);
     } catch (_) {
       AppToast.showError('Logout failed');
     }
@@ -107,9 +80,7 @@ class _HomeSideDrawerState extends ConsumerState<HomeSideDrawer> {
       // The drawer in the image appears to take up about 75-80% of the width
       width: MediaQuery.of(context).size.width * 0.8,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.zero,
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       child: Column(
         children: [
           _buildHeader(context),
@@ -121,13 +92,27 @@ class _HomeSideDrawerState extends ConsumerState<HomeSideDrawer> {
                   icon: Icons.person_outline,
                   title: 'My Profile',
                   subtitle: 'View and edit profile',
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const PartnerProfileScreen(),
+                      ),
+                    );
+                  },
                 ),
                 _PrimaryTile(
                   icon: Icons.location_on_outlined,
                   title: 'Address',
                   subtitle: 'Update your address',
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const EditAddressScreen(),
+                      ),
+                    );
+                  },
                 ),
                 _PrimaryTile(
                   icon: Icons.work_outline,
@@ -139,13 +124,28 @@ class _HomeSideDrawerState extends ConsumerState<HomeSideDrawer> {
                   icon: Icons.star_outline,
                   title: 'My Reviews',
                   subtitle: 'View your ratings & Reviews',
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const MyReviewsScreen(),
+                      ),
+                    );
+                  },
                 ),
                 _PrimaryTile(
-                  icon: Icons.settings_outlined, // Closer to the "Manage Service" icon
+                  icon: Icons
+                      .settings_outlined, // Closer to the "Manage Service" icon
                   title: 'Manage Service',
                   subtitle: 'Add or remove services',
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const ManageServicesScreen(),
+                      ),
+                    );
+                  },
                 ),
                 _PrimaryTile(
                   icon: Icons.help_outline,
@@ -154,7 +154,9 @@ class _HomeSideDrawerState extends ConsumerState<HomeSideDrawer> {
                   onTap: () {
                     Navigator.of(context).pop();
                     Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const HelpSupportScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => const HelpSupportScreen(),
+                      ),
                     );
                   },
                 ),
@@ -162,9 +164,21 @@ class _HomeSideDrawerState extends ConsumerState<HomeSideDrawer> {
                   padding: EdgeInsets.symmetric(vertical: 10),
                   child: Divider(color: Color(0xFFEAECF0), thickness: 1),
                 ),
-                _SimpleTile(icon: Icons.shield_outlined, title: 'Privacy Policy', onTap: () {}),
-                _SimpleTile(icon: Icons.assignment_outlined, title: 'Terms & Conditions', onTap: () {}),
-                _SimpleTile(icon: Icons.handshake_outlined, title: 'Welfare Policy', onTap: () {}),
+                _SimpleTile(
+                  icon: Icons.shield_outlined,
+                  title: 'Privacy Policy',
+                  onTap: () {},
+                ),
+                _SimpleTile(
+                  icon: Icons.assignment_outlined,
+                  title: 'Terms & Conditions',
+                  onTap: () {},
+                ),
+                _SimpleTile(
+                  icon: Icons.handshake_outlined,
+                  title: 'Welfare Policy',
+                  onTap: () {},
+                ),
               ],
             ),
           ),
@@ -188,7 +202,11 @@ class _HomeSideDrawerState extends ConsumerState<HomeSideDrawer> {
             backgroundColor: const Color(0xFFF7941D),
             child: Text(
               _loading ? '...' : _initials,
-              style: const TextStyle(fontSize: 28, color: Colors.white, fontWeight: FontWeight.normal),
+              style: const TextStyle(
+                fontSize: 28,
+                color: Colors.white,
+                fontWeight: FontWeight.normal,
+              ),
             ),
           ),
           const SizedBox(width: 15),
@@ -199,7 +217,11 @@ class _HomeSideDrawerState extends ConsumerState<HomeSideDrawer> {
               children: [
                 Text(
                   _loading ? '...' : (_profile?['name'] as String? ?? 'Helper'),
-                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 FutureBuilder<String?>(
@@ -244,7 +266,9 @@ class _HomeSideDrawerState extends ConsumerState<HomeSideDrawer> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFFFF1F0), // Light red tint
                 elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -253,7 +277,11 @@ class _HomeSideDrawerState extends ConsumerState<HomeSideDrawer> {
                   SizedBox(width: 8),
                   Text(
                     'Logout',
-                    style: TextStyle(color: Color(0xFFD92D20), fontSize: 16, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      color: Color(0xFFD92D20),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),
@@ -299,13 +327,21 @@ class _PrimaryTile extends StatelessWidget {
       ),
       title: Text(
         title,
-        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Color(0xFF1D2939)),
+        style: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 15,
+          color: Color(0xFF1D2939),
+        ),
       ),
       subtitle: Text(
         subtitle,
         style: const TextStyle(fontSize: 12, color: Color(0xFF667085)),
       ),
-      trailing: const Icon(Icons.chevron_right, color: Color(0xFF98A2B3), size: 20),
+      trailing: const Icon(
+        Icons.chevron_right,
+        color: Color(0xFF98A2B3),
+        size: 20,
+      ),
     );
   }
 }
@@ -315,7 +351,11 @@ class _SimpleTile extends StatelessWidget {
   final String title;
   final VoidCallback onTap;
 
-  const _SimpleTile({required this.icon, required this.title, required this.onTap});
+  const _SimpleTile({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -325,7 +365,11 @@ class _SimpleTile extends StatelessWidget {
       leading: Icon(icon, color: const Color(0xFF344054), size: 22),
       title: Text(
         title,
-        style: const TextStyle(fontSize: 14, color: Color(0xFF344054), fontWeight: FontWeight.w500),
+        style: const TextStyle(
+          fontSize: 14,
+          color: Color(0xFF344054),
+          fontWeight: FontWeight.w500,
+        ),
       ),
     );
   }

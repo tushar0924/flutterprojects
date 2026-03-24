@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'routes/app_router.dart';
 import 'session/session_manager.dart';
 import 'widgets/connectivity_guard.dart';
+import 'widgets/professional_page_transitions.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +22,16 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.indigo,
         scaffoldBackgroundColor: Colors.white,
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: ProfessionalPageTransitionsBuilder(),
+            TargetPlatform.iOS: ProfessionalPageTransitionsBuilder(),
+            TargetPlatform.macOS: ProfessionalPageTransitionsBuilder(),
+            TargetPlatform.windows: ProfessionalPageTransitionsBuilder(),
+            TargetPlatform.linux: ProfessionalPageTransitionsBuilder(),
+            TargetPlatform.fuchsia: ProfessionalPageTransitionsBuilder(),
+          },
+        ),
       ),
       initialRoute: AppRouter.splash,
       routes: AppRouter.routes(),

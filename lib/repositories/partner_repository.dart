@@ -2,6 +2,9 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 
+import '../models/partner_address_model.dart';
+import '../models/partner_review_model.dart';
+import '../models/upcoming_job_model.dart';
 import '../network/api_client.dart';
 import '../network/api_endpoint.dart';
 
@@ -128,10 +131,14 @@ class PartnerRepository {
         data: payload,
       );
       final responseData = (res.data as Map<String, dynamic>?) ?? {};
-      print('[submitOnboardingProfile] RESPONSE (${res.statusCode}): $responseData');
+      print(
+        '[submitOnboardingProfile] RESPONSE (${res.statusCode}): $responseData',
+      );
       return responseData;
     } on DioException catch (e) {
-      print('[submitOnboardingProfile] ERROR (${e.response?.statusCode}): ${e.response?.data}');
+      print(
+        '[submitOnboardingProfile] ERROR (${e.response?.statusCode}): ${e.response?.data}',
+      );
       return <String, dynamic>{
         'success': false,
         'message': _extractErrorMessage(
@@ -249,6 +256,156 @@ class PartnerRepository {
     }
   }
 
+  /// GET /api/partner/profile
+  Future<Map<String, dynamic>> getPartnerProfile() async {
+    try {
+      final res = await _client.get(PartnerApiEndpoint.profile);
+      return (res.data as Map<String, dynamic>?) ?? {};
+    } on DioException catch (e) {
+      return <String, dynamic>{
+        'success': false,
+        'message': _extractErrorMessage(
+          e,
+          fallback: 'Failed to load partner profile',
+        ),
+        'statusCode': e.response?.statusCode,
+      };
+    }
+  }
+
+  /// PUT /api/partner/profile
+  Future<Map<String, dynamic>> updatePartnerProfile({
+    String? fullName,
+    String? phone,
+    String? address,
+  }) async {
+    final data = <String, dynamic>{};
+    if (fullName != null) data['fullName'] = fullName;
+    if (phone != null) {
+      data['phone'] = phone;
+      data['phoneNumber'] = phone;
+    }
+    if (address != null) data['address'] = address;
+
+    try {
+      final res = await _client.put(PartnerApiEndpoint.profile, data: data);
+      return (res.data as Map<String, dynamic>?) ?? {};
+    } on DioException catch (e) {
+      return <String, dynamic>{
+        'success': false,
+        'message': _extractErrorMessage(
+          e,
+          fallback: 'Failed to update partner profile',
+        ),
+        'statusCode': e.response?.statusCode,
+      };
+    }
+  }
+
+  /// GET /api/partner/address
+  Future<PartnerAddressModel> getPartnerAddress() async {
+    try {
+      final res = await _client.get(PartnerApiEndpoint.address);
+      final data = (res.data as Map<String, dynamic>?) ?? {};
+      return PartnerAddressModel.fromPayload(data);
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      if (data is Map<String, dynamic>) {
+        return PartnerAddressModel.fromPayload(data);
+      }
+      return PartnerAddressModel.empty();
+    }
+  }
+
+  /// PUT /api/partner/address
+  Future<Map<String, dynamic>> updatePartnerAddress(
+    PartnerAddressModel address,
+  ) async {
+    try {
+      final res = await _client.put(
+        PartnerApiEndpoint.address,
+        data: address.toPutPayload(),
+      );
+      return (res.data as Map<String, dynamic>?) ?? {};
+    } on DioException catch (e) {
+      return <String, dynamic>{
+        'success': false,
+        'message': _extractErrorMessage(
+          e,
+          fallback: 'Failed to update address',
+        ),
+        'statusCode': e.response?.statusCode,
+      };
+    }
+  }
+
+  /// GET /api/partner/reviews
+  Future<PartnerReviewsResponse> getPartnerReviews() async {
+    try {
+      final res = await _client.get(PartnerApiEndpoint.reviews);
+      final data = (res.data as Map<String, dynamic>?) ?? {};
+      return PartnerReviewsResponse.fromJson(data);
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      if (data is Map<String, dynamic>) {
+        return PartnerReviewsResponse.fromJson(data);
+      }
+      return PartnerReviewsResponse.empty(
+        message: _extractErrorMessage(e, fallback: 'Failed to load reviews'),
+      );
+    }
+  }
+
+  /// GET /api/partner/services
+  Future<Map<String, dynamic>> getPartnerServices() async {
+    try {
+      final res = await _client.get(PartnerApiEndpoint.services);
+      return (res.data as Map<String, dynamic>?) ?? {};
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      if (data is Map<String, dynamic>) {
+        return data;
+      }
+      return <String, dynamic>{
+        'success': false,
+        'message': _extractErrorMessage(
+          e,
+          fallback: 'Failed to load partner services',
+        ),
+        'statusCode': e.response?.statusCode,
+      };
+    }
+  }
+
+  /// PUT /api/partner/services
+  Future<Map<String, dynamic>> updatePartnerServices({
+    required List<int> serviceIds,
+  }) async {
+    final payload = <String, dynamic>{
+      'serviceIds': serviceIds,
+      // Keep compatibility with APIs using `services` key.
+      'services': serviceIds,
+    };
+
+    try {
+      final res = await _client.put(PartnerApiEndpoint.services, data: payload);
+      return (res.data as Map<String, dynamic>?) ?? {};
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      if (data is Map<String, dynamic>) {
+        return data;
+      }
+      return <String, dynamic>{
+        'success': false,
+        'message': _extractErrorMessage(
+          e,
+          fallback: 'Failed to update partner services',
+        ),
+        'statusCode': e.response?.statusCode,
+      };
+    }
+  }
+
   /// GET /api/partner/jobs — Public job listings.
   /// Falls back to API error payload when Dio throws for non-2xx status.
   Future<Map<String, dynamic>> getPublicJobs({
@@ -302,6 +459,44 @@ class PartnerRepository {
       queryParameters: params,
     );
     return (res.data as Map<String, dynamic>?) ?? {};
+  }
+
+  /// GET /api/partner/bookings/upcoming
+  Future<UpcomingJobsApiResponse> getUpcomingBookings({
+    int page = 1,
+    int limit = 20,
+    String? day,
+    String? serviceType,
+  }) async {
+    final params = <String, dynamic>{'page': page, 'limit': limit};
+    if (day != null && day.trim().isNotEmpty) {
+      params['day'] = day.trim();
+    }
+    if (serviceType != null && serviceType.trim().isNotEmpty) {
+      params['serviceType'] = serviceType.trim();
+    }
+
+    try {
+      final res = await _client.get(
+        PartnerApiEndpoint.upcomingBookings,
+        queryParameters: params,
+      );
+      final data = (res.data as Map<String, dynamic>?) ?? {};
+      return UpcomingJobsApiResponse.fromJson(data);
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      if (data is Map<String, dynamic>) {
+        return UpcomingJobsApiResponse.fromJson(data);
+      }
+      return UpcomingJobsApiResponse.fromJson(<String, dynamic>{
+        'success': false,
+        'message': _extractErrorMessage(
+          e,
+          fallback: 'Failed to load upcoming bookings',
+        ),
+        'statusCode': e.response?.statusCode,
+      });
+    }
   }
 
   /// GET /api/partner/bookings/:bookingId

@@ -19,11 +19,14 @@ class _HelperrHomeState extends State<HelperrHome> {
   int _currentIndex = 0;
 
   Future<void> _showBookingAlert() async {
-    final res = await showDialog(context: context, builder: (_) => const BookingAlert());
+    final res = await showDialog(
+      context: context,
+      builder: (_) => const BookingAlert(),
+    );
     if (res == 'accepted' && mounted) {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const JobDetailsScreen()),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const JobDetailsScreen()));
     }
   }
 
@@ -39,6 +42,7 @@ class _HelperrHomeState extends State<HelperrHome> {
           HomeTabContent(
             onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
             onNotificationTap: _showBookingAlert,
+            onViewAllJobs: () => setState(() => _currentIndex = 1),
           ),
           const JobsTabContent(),
           const EarningsTabContent(),
@@ -53,10 +57,7 @@ class _HelperrHomeState extends State<HelperrHome> {
 }
 
 class _HomeBottomNav extends StatelessWidget {
-  const _HomeBottomNav({
-    required this.currentIndex,
-    required this.onChanged,
-  });
+  const _HomeBottomNav({required this.currentIndex, required this.onChanged});
 
   final int currentIndex;
   final ValueChanged<int> onChanged;
@@ -154,7 +155,9 @@ class _NavItem extends StatelessWidget {
                 label,
                 style: TextStyle(
                   fontSize: 11,
-                  color: active ? const Color(0xFF101828) : const Color(0xFF667085),
+                  color: active
+                      ? const Color(0xFF101828)
+                      : const Color(0xFF667085),
                   fontWeight: active ? FontWeight.w600 : FontWeight.w500,
                 ),
               ),

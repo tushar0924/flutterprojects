@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dropdown_button2/dropdown_button2.dart';
 
+import '../../models/upcoming_job_model.dart';
 import '../../providers/partner_provider.dart';
 import 'upcoming_job_detail_screen.dart';
 
@@ -12,59 +14,22 @@ class UpcomingJobsScreen extends ConsumerStatefulWidget {
 }
 
 class _UpcomingJobsScreenState extends ConsumerState<UpcomingJobsScreen> {
-  String _selectedServiceType = 'Service Type';
-  String _selectedDay = 'Day';
-  List<Map<String, dynamic>> _bookings = [];
+  String? _selectedServiceType;
+  String? _selectedDay;
+  List<UpcomingJobModel> _bookings = [];
   bool _isLoading = true;
+  String? _apiMessage;
+  int _todayJobsCount = 0;
+  int _totalUpcomingJobs = 0;
 
   static const List<String> _serviceTypes = [
     'Service Type',
     'Maid',
     'Cook',
     'Driver',
-    'Nanny',
   ];
 
   static const List<String> _days = ['Day', 'Today', 'Tomorrow', 'This Week'];
-
-  static const List<_UpcomingJobItem> _fallbackJobs = [
-    _UpcomingJobItem(
-      name: 'Priya Sharma',
-      rating: '4.9',
-      serviceType: 'Maid',
-      schedule: 'Today • 08:00 AM - 11 AM',
-      duration: '3 hours duration',
-      address: 'Address, lorem ipsum dolor',
-      amount: '₹750',
-    ),
-    _UpcomingJobItem(
-      name: 'Anita Desai',
-      rating: '4.9',
-      serviceType: 'Cook',
-      schedule: 'Today • 08:00 AM - 11 AM',
-      duration: '6 hours duration',
-      address: 'Address, lorem ipsum dolor',
-      amount: '₹150',
-    ),
-    _UpcomingJobItem(
-      name: 'Priya Sharma',
-      rating: '4.9',
-      serviceType: 'Driver',
-      schedule: 'Tomorrow • 08:00 AM - 11 AM',
-      duration: '3 hours duration',
-      address: 'Address, lorem ipsum dolor',
-      amount: '₹750',
-    ),
-    _UpcomingJobItem(
-      name: 'Anita Desai',
-      rating: '4.9',
-      serviceType: 'Nanny',
-      schedule: 'Today • 08:00 AM - 11 AM',
-      duration: '6 hours duration',
-      address: 'Address, lorem ipsum dolor',
-      amount: '₹150',
-    ),
-  ];
 
   @override
   void initState() {
@@ -73,44 +38,65 @@ class _UpcomingJobsScreenState extends ConsumerState<UpcomingJobsScreen> {
   }
 
   Future<void> _loadBookings() async {
-    setState(() => _isLoading = true);
-    try {
-      final repo = ref.read(partnerRepositoryProvider);
-      final res = await repo.getBookings(status: 'CONFIRMED', limit: 50);
-      if (mounted) {
-        final list = res['bookings'] as List<dynamic>? ?? [];
-        setState(() {
-          _bookings = list.map((e) => e as Map<String, dynamic>).toList();
-          _isLoading = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+    setState(() {
+      _isLoading = true;
+      _apiMessage = null;
+    });
+
+    final repo = ref.read(partnerRepositoryProvider);
+    final res = await repo.getUpcomingBookings(
+      limit: 50,
+      day: _dayParam(),
+      serviceType: _serviceTypeParam(),
+    );
+    if (!mounted) return;
+
+    final success = res.success;
+    if (success) {
+      setState(() {
+        _bookings = res.jobs;
+        _todayJobsCount = res.todayJobsCount;
+        _totalUpcomingJobs = res.totalUpcomingJobs;
+        _isLoading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _bookings = [];
+      _todayJobsCount = 0;
+      _totalUpcomingJobs = 0;
+      _apiMessage = res.message;
+      _isLoading = false;
+    });
+  }
+
+  List<UpcomingJobModel> get _jobs => _bookings;
+
+  String? _dayParam() {
+    switch (_selectedDay) {
+      case 'Today':
+        return 'today';
+      case 'Tomorrow':
+        return 'tomorrow';
+      case 'This Week':
+        return 'week';
+      default:
+        return null;
     }
   }
 
-  List<_UpcomingJobItem> get _jobs {
-    if (_bookings.isEmpty) return _fallbackJobs;
-    return _bookings.map((b) {
-      final customer = b['customer'] as Map<String, dynamic>?;
-      final service = b['service'] as Map<String, dynamic>?;
-      return _UpcomingJobItem(
-        name: customer?['name'] as String? ?? 'Customer',
-        rating: '4.5',
-        serviceType: service?['name'] as String? ?? 'Service',
-        schedule: b['scheduledAt'] != null
-            ? _formatSchedule(b['scheduledAt'].toString())
-            : '—',
-        duration: '${b['estimatedHours'] ?? 2} hours',
-        address: b['address'] as String? ?? '—',
-        amount: '₹${b['totalAmount'] ?? 0}',
-      );
-    }).toList();
-  }
-
-  String _formatSchedule(String iso) {
-    if (iso.length < 10) return iso;
-    return iso.substring(0, 10);
+  String? _serviceTypeParam() {
+    switch (_selectedServiceType) {
+      case 'Maid':
+        return 'MAID';
+      case 'Cook':
+        return 'COOK';
+      case 'Driver':
+        return 'DRIVER';
+      default:
+        return null;
+    }
   }
 
   @override
@@ -139,134 +125,237 @@ class _UpcomingJobsScreenState extends ConsumerState<UpcomingJobsScreen> {
         child: SafeArea(
           top: false,
           child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: _FilterDropdown(
-                      value: _selectedServiceType,
-                      items: _serviceTypes,
-                      onChanged: (value) {
-                        setState(() => _selectedServiceType = value);
-                      },
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _FilterDropdown2(
+                        title: _serviceTypes.first,
+                        selectedValue: _selectedServiceType,
+                        items: _serviceTypes.skip(1).toList(),
+                        onChanged: (value) async {
+                          setState(() {
+                            _selectedServiceType = _selectedServiceType == value
+                                ? null
+                                : value;
+                          });
+                          await _loadBookings();
+                        },
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _FilterDropdown(
-                      value: _selectedDay,
-                      items: _days,
-                      onChanged: (value) {
-                        setState(() => _selectedDay = value);
-                      },
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _FilterDropdown2(
+                        title: _days.first,
+                        selectedValue: _selectedDay,
+                        items: _days.skip(1).toList(),
+                        onChanged: (value) async {
+                          setState(() {
+                            _selectedDay = _selectedDay == value ? null : value;
+                          });
+                          await _loadBookings();
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _StatBox(
+                        title: _isLoading ? '...' : '$_todayJobsCount',
+                        subtitle: 'Available Today',
+                        backgroundColor: Color(0xFFEAF3FF),
+                        borderColor: Color(0xFFBBD8FF),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _StatBox(
+                        title: _isLoading ? '...' : '$_totalUpcomingJobs',
+                        subtitle: 'Total Jobs Available',
+                        backgroundColor: Color(0xFFEAF9E9),
+                        borderColor: Color(0xFFB7E6B4),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_apiMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      _apiMessage!,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF667085),
+                      ),
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: _StatBox(
-                      title: _isLoading ? '...' : '${_bookings.length}',
-                      subtitle: 'Bookings',
-                      backgroundColor: Color(0xFFEAF3FF),
-                      borderColor: Color(0xFFBBD8FF),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _StatBox(
-                      title: _isLoading ? '...' : '${_bookings.length}',
-                      subtitle: 'Total',
-                      backgroundColor: Color(0xFFEAF9E9),
-                      borderColor: Color(0xFFB7E6B4),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Expanded(
-                child: ListView.separated(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  itemCount: _jobs.length,
-                  separatorBuilder: (_, index) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) => _JobCard(
-                    job: _jobs[index],
-                    onViewDetails: () {
-                      final _UpcomingJobItem selected = _jobs[index];
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => UpcomingJobDetailScreen(
-                            customerName: selected.name,
-                            rating: selected.rating,
-                            serviceType: selected.serviceType,
-                            earnings: selected.amount,
+                const SizedBox(height: 10),
+                Expanded(
+                  child: _jobs.isEmpty && !_isLoading
+                      ? const Center(
+                          child: Text(
+                            'No upcoming jobs found',
+                            style: TextStyle(
+                              color: Color(0xFF667085),
+                              fontSize: 13,
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          itemCount: _jobs.length,
+                          separatorBuilder: (_, index) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (context, index) => _JobCard(
+                            job: _jobs[index],
+                            onViewDetails: () {
+                              final UpcomingJobModel selected = _jobs[index];
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => UpcomingJobDetailScreen(
+                                    customerName: selected.customerName,
+                                    rating: selected.displayRating,
+                                    serviceType: selected.serviceName,
+                                    earnings: selected.displayAmount,
+                                    bookingId: selected.bookingId,
+                                    dayLabel: selected.dayLabel,
+                                    timeLabel: selected.timeLabel,
+                                    durationLabel: selected.displayDuration,
+                                    address: selected.address,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ),
-                      );
-                    },
-                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
         ),
       ),
     );
   }
 }
 
-class _FilterDropdown extends StatelessWidget {
-  const _FilterDropdown({
-    required this.value,
+class _FilterDropdown2 extends StatelessWidget {
+  const _FilterDropdown2({
+    required this.title,
+    required this.selectedValue,
     required this.items,
     required this.onChanged,
   });
 
-  final String value;
+  final String title;
+  final String? selectedValue;
   final List<String> items;
   final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 34,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: const Color(0xFFD0D5DD)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          icon: const Icon(
-            Icons.keyboard_arrow_down,
-            size: 18,
-            color: Color(0xFF98A2B3),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return DropdownButtonHideUnderline(
+          child: DropdownButton2<String>(
+            isExpanded: true,
+            customButton: Container(
+              height: 34,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFD0D5DD)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      selectedValue ?? title,
+                      style: const TextStyle(
+                        color: Color(0xFF1D2939),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.keyboard_arrow_down,
+                    size: 18,
+                    color: Color(0xFF98A2B3),
+                  ),
+                ],
+              ),
+            ),
+            items: items
+                .map(
+                  (item) => DropdownMenuItem<String>(
+                    value: item,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item,
+                            style: const TextStyle(
+                              color: Color(0xFF1D2939),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          width: 16,
+                          height: 16,
+                          decoration: BoxDecoration(
+                            color: selectedValue == item
+                                ? const Color(0xFF0EA5E9)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(2),
+                            border: Border.all(
+                              color: selectedValue == item
+                                  ? const Color(0xFF0EA5E9)
+                                  : const Color(0xFF98A2B3),
+                              width: 1,
+                            ),
+                          ),
+                          child: selectedValue == item
+                              ? const Icon(
+                                  Icons.check,
+                                  size: 12,
+                                  color: Colors.white,
+                                )
+                              : null,
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (next) {
+              if (next != null) onChanged(next);
+            },
+            dropdownStyleData: DropdownStyleData(
+              width: constraints.maxWidth,
+              offset: const Offset(0, -2),
+              maxHeight: 124,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFD0D5DD)),
+              ),
+            ),
+            menuItemStyleData: const MenuItemStyleData(height: 34),
           ),
-          isExpanded: true,
-          borderRadius: BorderRadius.circular(8),
-          style: const TextStyle(
-            fontSize: 12,
-            color: Color(0xFF475467),
-            fontWeight: FontWeight.w500,
-          ),
-          items: items
-              .map(
-                (item) =>
-                    DropdownMenuItem<String>(value: item, child: Text(item)),
-              )
-              .toList(),
-          onChanged: (next) {
-            if (next != null) onChanged(next);
-          },
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -323,7 +412,7 @@ class _StatBox extends StatelessWidget {
 class _JobCard extends StatelessWidget {
   const _JobCard({required this.job, required this.onViewDetails});
 
-  final _UpcomingJobItem job;
+  final UpcomingJobModel job;
   final VoidCallback onViewDetails;
 
   @override
@@ -355,7 +444,7 @@ class _JobCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      job.name,
+                      job.customerName,
                       style: const TextStyle(
                         color: Color(0xFF101828),
                         fontSize: 12.5,
@@ -372,7 +461,7 @@ class _JobCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 3),
                         Text(
-                          job.rating,
+                          job.displayRating,
                           style: const TextStyle(
                             color: Color(0xFF475467),
                             fontSize: 10.5,
@@ -393,7 +482,7 @@ class _JobCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  job.serviceType,
+                  job.serviceName,
                   style: const TextStyle(
                     color: Color(0xFF0B2545),
                     fontSize: 10,
@@ -404,15 +493,15 @@ class _JobCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          _detailRow(Icons.calendar_today_outlined, job.schedule),
-          _detailRow(Icons.access_time_outlined, job.duration),
+          _detailRow(Icons.calendar_today_outlined, job.displaySchedule),
+          _detailRow(Icons.access_time_outlined, job.displayDuration),
           _detailRow(Icons.location_on_outlined, job.address),
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                job.amount,
+                job.displayAmount,
                 style: const TextStyle(
                   color: Color(0xFF0EA5E9),
                   fontSize: 23,
@@ -469,24 +558,4 @@ class _JobCard extends StatelessWidget {
       ),
     );
   }
-}
-
-class _UpcomingJobItem {
-  const _UpcomingJobItem({
-    required this.name,
-    required this.rating,
-    required this.serviceType,
-    required this.schedule,
-    required this.duration,
-    required this.address,
-    required this.amount,
-  });
-
-  final String name;
-  final String rating;
-  final String serviceType;
-  final String schedule;
-  final String duration;
-  final String address;
-  final String amount;
 }
