@@ -25,7 +25,7 @@ class EarningsPeriodTabs extends StatelessWidget {
             child: GestureDetector(
               onTap: () => onChanged(period),
               child: Container(
-                height: 32,
+                height: 30,
                 decoration: BoxDecoration(
                   color: isSelected ? Colors.white : const Color(0xFF173F63),
                   borderRadius: BorderRadius.circular(7),

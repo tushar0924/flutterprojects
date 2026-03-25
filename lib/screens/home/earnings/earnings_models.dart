@@ -15,13 +15,17 @@ extension EarningsPeriodLabel on EarningsPeriod {
 
 class WithdrawalRecord {
   const WithdrawalRecord({
+    required this.transactionId,
     required this.amount,
+    required this.title,
     required this.method,
     required this.status,
     required this.date,
   });
 
+  final String transactionId;
   final String amount;
+  final String title;
   final String method;
   final String status;
   final String date;

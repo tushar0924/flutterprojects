@@ -8,19 +8,25 @@ const Map<EarningsPeriod, EarningsSnapshot> kEarningsSnapshots = {
     minimumWithdrawal: 'Minimum Withdrawal: ₹500 • Processed within 24 hours',
     withdrawalHistory: [
       WithdrawalRecord(
+        transactionId: '500',
         amount: '₹500',
+        title: 'Payment Received',
         method: 'Bank Transfer',
         status: 'Completed',
         date: '20 Nov',
       ),
       WithdrawalRecord(
+        transactionId: '390',
         amount: '₹390',
+        title: 'Bonus Added',
         method: 'UPI',
         status: 'Completed',
         date: '16 Nov',
       ),
       WithdrawalRecord(
+        transactionId: '420',
         amount: '₹420',
+        title: 'Bonus Added',
         method: 'Bank Transfer',
         status: 'Completed',
         date: '10 Nov',
@@ -34,19 +40,25 @@ const Map<EarningsPeriod, EarningsSnapshot> kEarningsSnapshots = {
     minimumWithdrawal: 'Minimum Withdrawal: ₹500 • Processed within 24 hours',
     withdrawalHistory: [
       WithdrawalRecord(
+        transactionId: '1200',
         amount: '₹1200',
+        title: 'Payment Received',
         method: 'Bank Transfer',
         status: 'Completed',
         date: '28 Nov',
       ),
       WithdrawalRecord(
+        transactionId: '700',
         amount: '₹700',
+        title: 'Bonus Added',
         method: 'UPI',
         status: 'Completed',
         date: '26 Nov',
       ),
       WithdrawalRecord(
+        transactionId: '510',
         amount: '₹510',
+        title: 'Bonus Added',
         method: 'Bank Transfer',
         status: 'Completed',
         date: '24 Nov',
@@ -60,19 +72,25 @@ const Map<EarningsPeriod, EarningsSnapshot> kEarningsSnapshots = {
     minimumWithdrawal: 'Minimum Withdrawal: ₹500 • Processed within 24 hours',
     withdrawalHistory: [
       WithdrawalRecord(
+        transactionId: '3000',
         amount: '₹3000',
+        title: 'Payment Received',
         method: 'Bank Transfer',
         status: 'Completed',
         date: '30 Nov',
       ),
       WithdrawalRecord(
+        transactionId: '1850',
         amount: '₹1850',
+        title: 'Bonus Added',
         method: 'UPI',
         status: 'Completed',
         date: '22 Nov',
       ),
       WithdrawalRecord(
+        transactionId: '2200',
         amount: '₹2200',
+        title: 'Bonus Added',
         method: 'Bank Transfer',
         status: 'Completed',
         date: '14 Nov',

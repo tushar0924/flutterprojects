@@ -25,6 +25,11 @@ class PartnerApiEndpoint {
 
   static const String earningsSummary = 'partner/earnings/summary';
   static const String earningsHistory = 'partner/earnings/history';
+  static const String helperEarningsDashboard = 'helper/earnings/dashboard';
+  static const String helperEarningsHistory = 'helper/earnings/history';
+  static const String helperBank = 'helper/bank';
+  static String helperEarningsTransaction(String id) =>
+      'helper/earnings/transaction/$id';
 
   static const String opsDashboard = 'partner/ops/dashboard';
   static const String opsStatus = 'partner/ops/status';
@@ -36,6 +41,7 @@ class PartnerApiEndpoint {
   static const String publicJobs = 'partner/jobs';
   static const String bookings = 'partner/bookings';
   static const String upcomingBookings = 'partner/bookings/upcoming';
+  static const String bookingsHistory = 'partner/bookings/history';
 
   static String bookingDetail(int bookingId) => '$bookings/$bookingId';
 }

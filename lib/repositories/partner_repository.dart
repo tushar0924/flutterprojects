@@ -3,6 +3,10 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 
 import '../models/partner_address_model.dart';
+import '../models/helper_bank_model.dart';
+import '../models/helper_earnings_history_model.dart';
+import '../models/helper_earnings_transaction_model.dart';
+import '../models/job_history_model.dart';
 import '../models/partner_review_model.dart';
 import '../models/upcoming_job_model.dart';
 import '../network/api_client.dart';
@@ -235,6 +239,120 @@ class PartnerRepository {
       queryParameters: {'page': page, 'limit': limit},
     );
     return (res.data as Map<String, dynamic>?) ?? {};
+  }
+
+  /// GET /api/helper/earnings/dashboard
+  Future<Map<String, dynamic>> getHelperEarningsDashboard() async {
+    try {
+      final res = await _client.get(PartnerApiEndpoint.helperEarningsDashboard);
+      return (res.data as Map<String, dynamic>?) ?? {};
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      if (data is Map<String, dynamic>) {
+        return data;
+      }
+      return <String, dynamic>{
+        'success': false,
+        'message': _extractErrorMessage(
+          e,
+          fallback: 'Failed to load earnings dashboard',
+        ),
+      };
+    }
+  }
+
+  /// GET /api/helper/earnings/history
+  Future<HelperEarningsHistoryResponse> getHelperEarningsHistory({
+    int page = 1,
+    int limit = 20,
+  }) async {
+    try {
+      final res = await _client.get(
+        PartnerApiEndpoint.helperEarningsHistory,
+        queryParameters: {'page': page, 'limit': limit},
+      );
+      final data = (res.data as Map<String, dynamic>?) ?? {};
+      return HelperEarningsHistoryResponse.fromJson(data);
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      if (data is Map<String, dynamic>) {
+        return HelperEarningsHistoryResponse.fromJson(data);
+      }
+      return HelperEarningsHistoryResponse.fromJson(<String, dynamic>{
+        'success': false,
+        'message': _extractErrorMessage(
+          e,
+          fallback: 'Failed to load earnings history',
+        ),
+      });
+    }
+  }
+
+  /// GET /api/helper/bank
+  Future<HelperBankResponse> getHelperBank() async {
+    try {
+      final res = await _client.get(PartnerApiEndpoint.helperBank);
+      final data = (res.data as Map<String, dynamic>?) ?? {};
+      return HelperBankResponse.fromJson(data);
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      if (data is Map<String, dynamic>) {
+        return HelperBankResponse.fromJson(data);
+      }
+      return HelperBankResponse.fromJson(<String, dynamic>{
+        'success': false,
+        'message': _extractErrorMessage(
+          e,
+          fallback: 'Failed to load bank details',
+        ),
+      });
+    }
+  }
+
+  /// PUT /api/helper/bank
+  Future<Map<String, dynamic>> updateHelperBank(HelperBankAccount account) async {
+    try {
+      final res = await _client.put(
+        PartnerApiEndpoint.helperBank,
+        data: account.toPutPayload(),
+      );
+      return (res.data as Map<String, dynamic>?) ?? {};
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      if (data is Map<String, dynamic>) {
+        return data;
+      }
+      return <String, dynamic>{
+        'success': false,
+        'message': _extractErrorMessage(
+          e,
+          fallback: 'Failed to update bank details',
+        ),
+      };
+    }
+  }
+
+  /// GET /api/helper/earnings/transaction/:id
+  Future<HelperEarningsTransactionResponse> getHelperEarningsTransactionDetail(
+    String id,
+  ) async {
+    try {
+      final res = await _client.get(PartnerApiEndpoint.helperEarningsTransaction(id));
+      final data = (res.data as Map<String, dynamic>?) ?? {};
+      return HelperEarningsTransactionResponse.fromJson(data);
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      if (data is Map<String, dynamic>) {
+        return HelperEarningsTransactionResponse.fromJson(data);
+      }
+      return HelperEarningsTransactionResponse.fromJson(<String, dynamic>{
+        'success': false,
+        'message': _extractErrorMessage(
+          e,
+          fallback: 'Failed to load transaction detail',
+        ),
+      });
+    }
   }
 
   // ── Ops (Dashboard, Status) ──────────────────────────────────────────────
@@ -495,6 +613,35 @@ class PartnerRepository {
           fallback: 'Failed to load upcoming bookings',
         ),
         'statusCode': e.response?.statusCode,
+      });
+    }
+  }
+
+  /// GET /api/partner/bookings/history
+  Future<JobHistoryApiResponse> getBookingHistory({
+    int page = 1,
+    int limit = 20,
+  }) async {
+    final params = <String, dynamic>{'page': page, 'limit': limit};
+
+    try {
+      final res = await _client.get(
+        PartnerApiEndpoint.bookingsHistory,
+        queryParameters: params,
+      );
+      final data = (res.data as Map<String, dynamic>?) ?? {};
+      return JobHistoryApiResponse.fromJson(data);
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      if (data is Map<String, dynamic>) {
+        return JobHistoryApiResponse.fromJson(data);
+      }
+      return JobHistoryApiResponse.fromJson(<String, dynamic>{
+        'success': false,
+        'message': _extractErrorMessage(
+          e,
+          fallback: 'Failed to load booking history',
+        ),
       });
     }
   }

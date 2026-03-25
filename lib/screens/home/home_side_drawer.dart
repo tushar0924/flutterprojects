@@ -12,6 +12,7 @@ import '../help_support/help_support_screen.dart';
 import '../profile/partner_profile_screen.dart';
 import '../reviews/my_reviews_screen.dart';
 import '../services/manage_services_screen.dart';
+import 'job_history/job_history_screen.dart';
 
 class HomeSideDrawer extends ConsumerStatefulWidget {
   const HomeSideDrawer({super.key});
@@ -118,7 +119,14 @@ class _HomeSideDrawerState extends ConsumerState<HomeSideDrawer> {
                   icon: Icons.work_outline,
                   title: 'Job History',
                   subtitle: 'See your past jobs',
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const JobHistoryScreen(),
+                      ),
+                    );
+                  },
                 ),
                 _PrimaryTile(
                   icon: Icons.star_outline,
