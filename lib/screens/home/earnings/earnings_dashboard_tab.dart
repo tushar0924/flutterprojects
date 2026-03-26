@@ -53,7 +53,10 @@ class _EarningsDashboardTabState extends ConsumerState<EarningsDashboardTab> {
   }
 
   Future<void> _loadEarnings() async {
-    setState(() => _isLoading = true);
+    final isInitialLoad = _dashboardData == null;
+    if (isInitialLoad) {
+      setState(() => _isLoading = true);
+    }
     try {
       final repo = ref.read(partnerRepositoryProvider);
       final responses = await Future.wait<dynamic>([
@@ -77,7 +80,7 @@ class _EarningsDashboardTabState extends ConsumerState<EarningsDashboardTab> {
   }
 
   EarningsSnapshot get _snapshot {
-    if (_isLoading || _dashboardData == null) {
+    if (_dashboardData == null) {
       return kEarningsSnapshots[_selectedPeriod]!;
     }
     final periodKey = switch (_selectedPeriod) {
@@ -249,18 +252,18 @@ class _EarningsDashboardTabState extends ConsumerState<EarningsDashboardTab> {
             Container(
               width: double.infinity,
               decoration: const BoxDecoration(color: Color(0xFF0B2545)),
-              padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
+              padding: const EdgeInsets.fromLTRB(10, 20, 10, 18),
               child: Column(
                 children: [
                   const Text(
                     'Earnings Dashboard',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   EarningsPeriodTabs(
                     selectedPeriod: _selectedPeriod,
                     onChanged: (period) {

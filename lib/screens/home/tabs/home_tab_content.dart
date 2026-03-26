@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../../models/upcoming_job_model.dart';
 import '../../../../providers/partner_provider.dart';
@@ -54,13 +55,10 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
       }
       final dashRes = await partnerRepo.getOpsDashboard();
       final dashboard = _extractDashboard(dashRes);
-      if (dashRes['success'] == true && dashboard.isNotEmpty && mounted) {
+      if (dashboard.isNotEmpty && mounted) {
         setState(() {
           _dashboard = dashboard;
-          _isOnline =
-              (_dashboard!['helper'] as Map<String, dynamic>?)?['isOnline']
-                  as bool? ??
-              true;
+          _isOnline = _resolveOnlineStatus(dashboard, fallback: _isOnline);
         });
       }
 
@@ -102,10 +100,10 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
 
         try {
           final res = await partnerRepo.updateOpsStatus(isOnline: targetState);
-          final serverState = res['isOnline'] as bool?;
+          final serverState = _resolveOnlineStatus(res, fallback: targetState);
 
           if (!mounted) return;
-          if (serverState != null && _pendingOnlineState == null) {
+          if (_pendingOnlineState == null) {
             setState(() => _isOnline = serverState);
           }
         } catch (_) {
@@ -132,6 +130,55 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
 
     if (payload['helper'] is Map) return Map<String, dynamic>.from(payload);
     return const <String, dynamic>{};
+  }
+
+  bool _resolveOnlineStatus(
+    Map<String, dynamic> payload, {
+    required bool fallback,
+  }) {
+    final helper = payload['helper'];
+    if (helper is Map) {
+      final helperMap = Map<String, dynamic>.from(helper);
+      final helperResolved = _readOnlineFromMap(helperMap);
+      if (helperResolved != null) return helperResolved;
+    }
+
+    final resolved = _readOnlineFromMap(payload);
+    return resolved ?? fallback;
+  }
+
+  bool? _readOnlineFromMap(Map<String, dynamic> source) {
+    const keys = <String>[
+      'isOnline',
+      'online',
+      'active',
+      'availability',
+      'status',
+      'opsStatus',
+      'currentStatus',
+    ];
+
+    for (final key in keys) {
+      final parsed = _parseOnlineValue(source[key]);
+      if (parsed != null) return parsed;
+    }
+
+    return null;
+  }
+
+  bool? _parseOnlineValue(dynamic value) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      if (normalized == 'online' || normalized == 'true' || normalized == '1') {
+        return true;
+      }
+      if (normalized == 'offline' || normalized == 'false' || normalized == '0') {
+        return false;
+      }
+    }
+    return null;
   }
 
   String get _displayName {
@@ -191,52 +238,83 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
           children: [
             _buildHeader(context),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildCurrentJobCard(context),
-                    const SizedBox(height: 16), // Reduced from 24
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        GestureDetector(
-                          onTap: widget.onViewAllJobs,
-                          child: const Text(
-                            'Upcoming Jobs',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF1D2939),
-                            ),
+              child: _isOnline
+                  ? SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildCurrentJobCard(context),
+                          const SizedBox(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              GestureDetector(
+                                onTap: widget.onViewAllJobs,
+                                child: const Text(
+                                  'Upcoming Jobs',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF1D2939),
+                                  ),
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: widget.onViewAllJobs,
+                                child: const Text(
+                                  'View All',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Color(0xFF0EA5E9),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        GestureDetector(
-                          onTap: widget.onViewAllJobs,
-                          child: const Text(
-                            'View All',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF0EA5E9),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    _buildUpcomingJobsList(),
-                  ],
-                ),
-              ),
+                          const SizedBox(height: 10),
+                          _buildUpcomingJobsList(),
+                        ],
+                      ),
+                    )
+                  : _buildOfflineBody(),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildOfflineBody() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: SizedBox(
+            height: constraints.maxHeight,
+            child: const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  'Go online for job request and grab\nyour first booking',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF1D2939),
+                    fontSize: 21,
+                    height: 1.35,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -246,11 +324,11 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
       decoration: const BoxDecoration(
         color: Color(0xFF0B2239),
         borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
+          bottomLeft: Radius.circular(30),
+          bottomRight: Radius.circular(30),
         ),
       ),
-      padding: const EdgeInsets.fromLTRB(8, 40, 8, 20), // Tightened top/bottom
+      padding: const EdgeInsets.fromLTRB(12, 38, 12, 18),
       child: Column(
         children: [
           Row(
@@ -272,7 +350,7 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
                     ),
                     Padding(
                       // Invisible hit slop around the toggle; visual UI remains unchanged.
-                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
+                      padding: const EdgeInsets.fromLTRB(8, 2, 8, 10),
                       child: _OnlineToggle(
                         isOnline: _isOnline,
                         onTap: _toggleOnline,
@@ -288,8 +366,8 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
                     onTap: widget.onNotificationTap,
                   ),
                   Positioned(
-                    right: 8,
-                    top: 8,
+                    right: 10,
+                    top: 10,
                     child: Container(
                       width: 6,
                       height: 6,
@@ -303,26 +381,28 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
               ),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
           SizedBox(
-            height: 124,
+            height: 132,
             child: Row(
               children: [
                 _StatCard(
                   icon: Icons.work_outline,
+                  iconAssetPath: 'assets/home_tiles/job_tile.svg',
                   value: _isLoading ? '...' : '$_totalUpcomingJobs',
                   label: 'Upcoming Jobs',
                   onTap: widget.onViewAllJobs,
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 _StatCard(
                   icon: Icons.check_circle_outline,
                   value: _isLoading ? '...' : '$_todayCompleted',
                   label: 'Jobs Completed',
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 _StatCard(
                   icon: Icons.currency_rupee,
+                  iconAssetPath: 'assets/home_tiles/earning_tile.svg',
                   value: _isLoading ? '...' : _totalEarningLabel,
                   label: 'Total Earning',
                 ),
@@ -338,14 +418,14 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
     return InkWell(
       onTap: onTap,
       child: Container(
-        width: 36,
-        height: 36,
+        width: 42,
+        height: 42,
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
         ),
-        child: Icon(icon, color: Colors.white, size: 18),
+        child: Icon(icon, color: Colors.white, size: 21),
       ),
     );
   }
@@ -484,7 +564,7 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
     }
 
     return SizedBox(
-      height: 145, // Reduced from 170 to save space
+      height: 146,
       child: ListView(
         scrollDirection: Axis.horizontal,
         clipBehavior: Clip.none,
@@ -567,7 +647,7 @@ class _OnlineToggle extends StatelessWidget {
                       isOnline ? 'Online' : 'Offline',
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 9,
+                        fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -599,11 +679,13 @@ class _OnlineToggle extends StatelessWidget {
 
 class _StatCard extends StatelessWidget {
   final IconData icon;
+  final String? iconAssetPath;
   final String value;
   final String label;
   final VoidCallback? onTap;
   const _StatCard({
     required this.icon,
+    this.iconAssetPath,
     required this.value,
     required this.label,
     this.onTap,
@@ -615,10 +697,10 @@ class _StatCard extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.fromLTRB(8, 6, 8, 5),
+          padding: const EdgeInsets.fromLTRB(9, 9, 9, 8),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.04),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.46)),
             borderRadius: BorderRadius.circular(17),
             boxShadow: [
               BoxShadow(
@@ -629,31 +711,57 @@ class _StatCard extends StatelessWidget {
             ],
           ),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Padding(
                 padding: const EdgeInsets.only(top: 2),
-                child: Icon(icon, color: Colors.white, size: 25),
+                child: iconAssetPath == null
+                    ? Icon(icon, color: Colors.white, size: 24)
+                    : SvgPicture.asset(
+                        iconAssetPath!,
+                        width: 24,
+                        height: 24,
+                        fit: BoxFit.contain,
+                        colorFilter: const ColorFilter.mode(
+                          Colors.white,
+                          BlendMode.srcIn,
+                        ),
+                        placeholderBuilder: (context) => Icon(
+                          icon,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
               ),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  value,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 32,
-                    fontWeight: FontWeight.w400,
-                    height: 1,
+              const SizedBox(height: 10),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      value,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 36,
+                        fontWeight: FontWeight.w500,
+                        height: 1,
+                      ),
+                    ),
                   ),
                 ),
               ),
+              const SizedBox(height: 9),
               Text(
                 label,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.96),
-                  fontSize: 30 / 3,
-                  fontWeight: FontWeight.w400,
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
                   letterSpacing: 0.1,
                 ),
               ),
@@ -700,93 +808,141 @@ class _UpcomingJobCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(14),
       child: Container(
-        width: 260,
-        padding: const EdgeInsets.all(10),
+        width: 278,
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFEAECF0)),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFD0D5DD)),
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const CircleAvatar(
-              radius: 16,
-              backgroundColor: Color(0xFF0B2239),
-              child: Icon(Icons.person_outline, color: Colors.white, size: 18),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          job.customerName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0EA5E9),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          job.serviceName,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                          ),
-                        ),
-                      ),
-                    ],
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF0B2545),
+                    shape: BoxShape.circle,
                   ),
-                  Row(
+                  child: const Icon(
+                    Icons.person_outline,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.star, color: Colors.orange, size: 12),
                       Text(
-                        ' ${job.displayRating}',
-                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                        job.customerName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF101828),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.star,
+                            color: Color(0xFFF59E0B),
+                            size: 14,
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            job.displayRating,
+                            style: const TextStyle(
+                              color: Color(0xFF101828),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  _miniDetail(Icons.calendar_today, job.displaySchedule),
-                  _miniDetail(Icons.access_time, job.displayDuration),
-                  _miniDetail(Icons.currency_rupee, job.displayAmount),
-                ],
-              ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0EA5E9),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    job.serviceName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
             ),
+            const SizedBox(height: 10),
+            _infoRow(Icons.calendar_month_outlined, job.displaySchedule),
+            const SizedBox(height: 6),
+            _infoRow(Icons.access_time_outlined, _durationLine),
+            const SizedBox(height: 6),
+            _infoRow(Icons.currency_rupee, _rateLine),
           ],
         ),
       ),
     );
   }
 
-  Widget _miniDetail(IconData icon, String text) {
+  String get _durationLine {
+    final raw = job.displayDuration.trim();
+    if (raw.isEmpty || raw == '—') return '—';
+    final lower = raw.toLowerCase();
+    if (lower.contains('duration')) return raw;
+    return '$raw duration';
+  }
+
+  String get _rateLine {
+    final raw = job.displayAmount.trim();
+    if (raw.isEmpty || raw == '—') return '—';
+    final lower = raw.toLowerCase();
+    if (lower.contains('hour') || lower.contains('/hr') || lower.contains('/hour')) {
+      return raw;
+    }
+    return '$raw per hour';
+  }
+
+  Widget _infoRow(IconData icon, String text) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
+      padding: EdgeInsets.zero,
       child: Row(
         children: [
-          Icon(icon, size: 12, color: Colors.grey),
-          const SizedBox(width: 4),
-          Text(
-            text,
-            style: const TextStyle(fontSize: 11, color: Color(0xFF475467)),
+          Icon(icon, size: 17, color: const Color(0xFF344054)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF101828),
+                fontWeight: FontWeight.w400,
+              ),
+            ),
           ),
         ],
       ),

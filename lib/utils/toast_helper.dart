@@ -36,4 +36,15 @@ class AppToast {
       fontSize: 14.0,
     );
   }
+
+  static void showNeutral(String message) {
+    Fluttertoast.showToast(
+      msg: message,
+      toastLength: Toast.LENGTH_SHORT,
+      gravity: ToastGravity.BOTTOM,
+      backgroundColor: const Color(0xFF616161),
+      textColor: Colors.white,
+      fontSize: 14.0,
+    );
+  }
 }

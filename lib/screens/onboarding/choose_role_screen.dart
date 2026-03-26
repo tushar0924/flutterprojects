@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/partner_onboarding_provider.dart';
 import '../../routes/app_router.dart';
+import '../../utils/toast_helper.dart';
 
 class ChooseRoleScreen extends ConsumerStatefulWidget {
   const ChooseRoleScreen({super.key});
@@ -15,6 +15,19 @@ class ChooseRoleScreen extends ConsumerStatefulWidget {
 class _ChooseRoleScreenState extends ConsumerState<ChooseRoleScreen> {
   int _selected = 1;
   bool _isContinuing = false;
+  DateTime? _lastBackPressAt;
+
+  Future<bool> _onWillPop() async {
+    final now = DateTime.now();
+    if (_lastBackPressAt == null ||
+        now.difference(_lastBackPressAt!) > const Duration(seconds: 2)) {
+      _lastBackPressAt = now;
+      AppToast.showNeutral('Press again to exit app');
+      return false;
+    }
+
+    return true;
+  }
 
   Future<void> _continue() async {
     setState(() => _isContinuing = true);
@@ -38,10 +51,7 @@ class _ChooseRoleScreenState extends ConsumerState<ChooseRoleScreen> {
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
-      onWillPop: () async {
-        await SystemNavigator.pop();
-        return false;
-      },
+      onWillPop: _onWillPop,
       child: Scaffold(
         backgroundColor: const Color(0xFF1A2740),
         body: SafeArea(

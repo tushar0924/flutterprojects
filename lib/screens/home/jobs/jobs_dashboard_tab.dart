@@ -103,12 +103,12 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
             Container(
               width: double.infinity,
               color: const Color(0xFF0B2545),
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              padding: const EdgeInsets.fromLTRB(12, 16, 12, 16),
               child: Row(
                 children: [
                   Container(
-                    width: 28,
-                    height: 28,
+                    width: 34,
+                    height: 34,
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
@@ -119,7 +119,7 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
                     child: const Icon(
                       Icons.business_center_outlined,
                       color: Colors.white,
-                      size: 16,
+                      size: 19,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -127,7 +127,7 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
                     'Upcoming Jobs',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 18,
+                      fontSize: 20,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -176,26 +176,29 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
                       ],
                     ),
                     const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _StatBox(
-                            title: _isLoading ? '...' : '$_todayJobsCount',
-                            subtitle: 'Available Today',
-                            backgroundColor: Color(0xFFEAF3FF),
-                            borderColor: Color(0xFFBBD8FF),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(2, 2, 2, 2),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _StatBox(
+                              title: _isLoading ? '...' : '$_todayJobsCount',
+                              subtitle: 'Available Today',
+                              backgroundColor: Color(0xFFEAF3FF),
+                              borderColor: Color(0xFFBBD8FF),
+                            ),
                           ),
-                        ),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: _StatBox(
-                            title: _isLoading ? '...' : '$_totalUpcomingJobs',
-                            subtitle: 'Total Jobs Available',
-                            backgroundColor: Color(0xFFEAF9E9),
-                            borderColor: Color(0xFFB7E6B4),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _StatBox(
+                              title: _isLoading ? '...' : '$_totalUpcomingJobs',
+                              subtitle: 'Total Jobs Available',
+                              backgroundColor: Color(0xFFEAF9E9),
+                              borderColor: Color(0xFFB7E6B4),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                     if (_jobsApiMessage != null) ...[
                       const SizedBox(height: 8),
@@ -230,28 +233,31 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         separatorBuilder: (_, index) =>
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           final UpcomingJobModel job = _jobs[index];
-                          return _JobCard(
-                            job: job,
-                            onViewDetails: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => UpcomingJobDetailScreen(
-                                    customerName: job.customerName,
-                                    rating: job.displayRating,
-                                    serviceType: job.serviceName,
-                                    earnings: job.displayAmount,
-                                    bookingId: job.bookingId,
-                                    dayLabel: job.dayLabel,
-                                    timeLabel: job.timeLabel,
-                                    durationLabel: job.displayDuration,
-                                    address: job.address,
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                            child: _JobCard(
+                              job: job,
+                              onViewDetails: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => UpcomingJobDetailScreen(
+                                      customerName: job.customerName,
+                                      rating: job.displayRating,
+                                      serviceType: job.serviceName,
+                                      earnings: job.displayAmount,
+                                      bookingId: job.bookingId,
+                                      dayLabel: job.dayLabel,
+                                      timeLabel: job.timeLabel,
+                                      durationLabel: job.displayDuration,
+                                      address: job.address,
+                                    ),
                                   ),
-                                ),
-                              );
-                            },
+                                );
+                              },
+                            ),
                           );
                         },
                       ),
@@ -287,8 +293,8 @@ class _FilterDropdown2 extends StatelessWidget {
           child: DropdownButton2<String>(
             isExpanded: true,
             customButton: Container(
-              height: 34,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(8),
@@ -301,14 +307,14 @@ class _FilterDropdown2 extends StatelessWidget {
                       selectedValue ?? title,
                       style: const TextStyle(
                         color: Color(0xFF1D2939),
-                        fontSize: 12,
+                        fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
                   const Icon(
                     Icons.keyboard_arrow_down,
-                    size: 18,
+                    size: 20,
                     color: Color(0xFF98A2B3),
                   ),
                 ],
@@ -325,7 +331,7 @@ class _FilterDropdown2 extends StatelessWidget {
                             item,
                             style: const TextStyle(
                               color: Color(0xFF1D2939),
-                              fontSize: 12,
+                              fontSize: 13,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -364,7 +370,7 @@ class _FilterDropdown2 extends StatelessWidget {
             dropdownStyleData: DropdownStyleData(
               width: constraints.maxWidth,
               offset: const Offset(0, -2),
-              maxHeight: 124,
+              maxHeight: 140,
               elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 6),
               decoration: BoxDecoration(
@@ -373,7 +379,7 @@ class _FilterDropdown2 extends StatelessWidget {
                 border: Border.all(color: const Color(0xFFD0D5DD)),
               ),
             ),
-            menuItemStyleData: const MenuItemStyleData(height: 34),
+            menuItemStyleData: const MenuItemStyleData(height: 38),
           ),
         );
       },
@@ -397,7 +403,7 @@ class _StatBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(10),
@@ -410,17 +416,17 @@ class _StatBox extends StatelessWidget {
             title,
             style: const TextStyle(
               color: Color(0xFF101828),
-              fontSize: 32,
+              fontSize: 34,
               fontWeight: FontWeight.w500,
               height: 1.0,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 18),
           Text(
             subtitle,
             style: const TextStyle(
               color: Color(0xFF344054),
-              fontSize: 12,
+              fontSize: 12.5,
               fontWeight: FontWeight.w400,
             ),
           ),
@@ -439,10 +445,10 @@ class _JobCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE4E7EC)),
       ),
       child: Column(

@@ -4,7 +4,7 @@ const Map<EarningsPeriod, EarningsSnapshot> kEarningsSnapshots = {
   EarningsPeriod.today: EarningsSnapshot(
     availableBalance: '₹638',
     pendingEarnings: '₹2638',
-    pendingMessage: 'From 8 jobs • Available on 1 Dec',
+    pendingMessage: '',
     minimumWithdrawal: 'Minimum Withdrawal: ₹500 • Processed within 24 hours',
     withdrawalHistory: [
       WithdrawalRecord(
@@ -36,7 +36,7 @@ const Map<EarningsPeriod, EarningsSnapshot> kEarningsSnapshots = {
   EarningsPeriod.thisWeek: EarningsSnapshot(
     availableBalance: '₹2410',
     pendingEarnings: '₹1890',
-    pendingMessage: 'From 16 jobs • Available on 3 Dec',
+    pendingMessage: '',
     minimumWithdrawal: 'Minimum Withdrawal: ₹500 • Processed within 24 hours',
     withdrawalHistory: [
       WithdrawalRecord(
@@ -68,7 +68,7 @@ const Map<EarningsPeriod, EarningsSnapshot> kEarningsSnapshots = {
   EarningsPeriod.thisMonth: EarningsSnapshot(
     availableBalance: '₹7860',
     pendingEarnings: '₹3240',
-    pendingMessage: 'From 42 jobs • Available on 5 Dec',
+    pendingMessage: '',
     minimumWithdrawal: 'Minimum Withdrawal: ₹500 • Processed within 24 hours',
     withdrawalHistory: [
       WithdrawalRecord(

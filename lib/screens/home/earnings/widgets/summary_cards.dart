@@ -103,6 +103,8 @@ class PendingEarningsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final trimmedMessage = pendingMessage.trim();
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
@@ -153,15 +155,17 @@ class PendingEarningsCard extends StatelessWidget {
               color: Color(0xFF733E0A),
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            pendingMessage,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w400,
-              color: Color(0xFF667085),
+          if (trimmedMessage.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              trimmedMessage,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+                color: Color(0xFF667085),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
