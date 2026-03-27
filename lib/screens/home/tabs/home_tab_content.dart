@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../../../models/user_profile_model.dart';
 import '../../../../models/upcoming_job_model.dart';
 import '../../../../providers/partner_provider.dart';
 import '../../../utils/toast_helper.dart';
@@ -26,7 +27,7 @@ class HomeTabContent extends ConsumerStatefulWidget {
 
 class _HomeTabContentState extends ConsumerState<HomeTabContent> {
   Map<String, dynamic>? _dashboard;
-  Map<String, dynamic>? _userProfile;
+  UserProfile? _userProfile;
   bool _isLoading = true;
   bool _isOnline = true;
   bool _isSyncingOnlineStatus = false;
@@ -45,13 +46,9 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
     final partnerRepo = ref.read(partnerRepositoryProvider);
     final userRepo = ref.read(userRepositoryProvider);
     try {
-      final profileRes = await userRepo.getProfile();
-      if (profileRes['success'] == true && profileRes['user'] != null) {
-        if (mounted) {
-          setState(
-            () => _userProfile = profileRes['user'] as Map<String, dynamic>,
-          );
-        }
+      final profile = await userRepo.getProfileModel();
+      if (profile != null && mounted) {
+        setState(() => _userProfile = profile);
       }
       final dashRes = await partnerRepo.getOpsDashboard();
       final dashboard = _extractDashboard(dashRes);
@@ -183,15 +180,20 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
 
   String get _displayName {
     if (_dashboard != null) {
-      final helper = _dashboard!['helper'] as Map<String, dynamic>?;
-      if (helper != null && helper['name'] != null) {
-        return helper['name'] as String;
+      final helper = _dashboard!['helper'];
+      if (helper is Map<String, dynamic>) {
+        final fullName = helper['fullName'];
+        if (fullName is String && fullName.trim().isNotEmpty) {
+          return fullName.trim();
+        }
+
+        final name = helper['name'];
+        if (name is String && name.trim().isNotEmpty) {
+          return name.trim();
+        }
       }
     }
-    if (_userProfile != null && _userProfile!['name'] != null) {
-      return _userProfile!['name'] as String;
-    }
-    return 'Helper';
+    return _userProfile?.displayName ?? 'Helper';
   }
 
   int get _pendingCount =>
@@ -586,6 +588,8 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
                       timeLabel: selected.timeLabel,
                       durationLabel: selected.displayDuration,
                       address: selected.address,
+                      latitude: selected.latitude,
+                      longitude: selected.longitude,
                     ),
                   ),
                 );
@@ -813,9 +817,9 @@ class _UpcomingJobCard extends StatelessWidget {
         width: 278,
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: const Color(0xFFFFFFFF),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFD0D5DD)),
+          border: Border.all(color: const Color(0xFFD6DADF)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -847,7 +851,7 @@ class _UpcomingJobCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: Color(0xFF101828),
-                          fontSize: 16,
+                          fontSize: 17,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -864,7 +868,7 @@ class _UpcomingJobCard extends StatelessWidget {
                             job.displayRating,
                             style: const TextStyle(
                               color: Color(0xFF101828),
-                              fontSize: 13,
+                              fontSize: 14,
                               fontWeight: FontWeight.w400,
                             ),
                           ),
@@ -879,7 +883,7 @@ class _UpcomingJobCard extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0EA5E9),
+                    color: const Color(0xFF0B2545),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -888,7 +892,7 @@ class _UpcomingJobCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -930,7 +934,7 @@ class _UpcomingJobCard extends StatelessWidget {
       padding: EdgeInsets.zero,
       child: Row(
         children: [
-          Icon(icon, size: 17, color: const Color(0xFF344054)),
+          Icon(icon, size: 17, color: const Color(0xFF1F2937)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -938,8 +942,8 @@ class _UpcomingJobCard extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xFF101828),
+                fontSize: 13,
+                color: Color(0xFF1F2937),
                 fontWeight: FontWeight.w400,
               ),
             ),

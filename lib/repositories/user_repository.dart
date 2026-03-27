@@ -1,3 +1,6 @@
+import 'package:dio/dio.dart';
+
+import '../models/user_profile_model.dart';
 import '../network/api_client.dart';
 import '../network/api_endpoint.dart';
 
@@ -12,6 +15,19 @@ class UserRepository {
     return (res.data as Map<String, dynamic>?) ?? {};
   }
 
+  Future<UserProfile?> getProfileModel() async {
+    final payload = await getProfile();
+    if (payload['success'] != true) {
+      return null;
+    }
+
+    final profile = UserProfile.fromProfileResponse(payload);
+    if (profile.isEmpty) {
+      return null;
+    }
+    return profile;
+  }
+
   /// PUT /api/user/profile
   Future<Map<String, dynamic>> updateProfile({
     String? name,
@@ -20,7 +36,13 @@ class UserRepository {
     final data = <String, dynamic>{};
     if (name != null) data['name'] = name;
     if (email != null) data['email'] = email;
-    final res = await _client.put(UserApiEndpoint.profile, data: data);
+    final res = await _client.put(
+      UserApiEndpoint.profile,
+      data: data,
+      options: Options(
+        extra: {'successToastMessage': 'Profile updated successfully'},
+      ),
+    );
     return (res.data as Map<String, dynamic>?) ?? {};
   }
 

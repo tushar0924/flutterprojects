@@ -4,10 +4,59 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'api_endpoint.dart';
 import '../session/session_manager.dart';
+import '../utils/toast_helper.dart';
 
 class ApiClient {
   late final Dio dio;
   final SessionManager _session = SessionManager();
+
+  bool _isPutMethod(String method) => method.toUpperCase() == 'PUT';
+
+  String? _extractSuccessMessage(dynamic data) {
+    if (data is! Map) return null;
+    final map = Map<String, dynamic>.from(data as Map);
+    final candidate =
+        map['message'] ?? map['msg'] ?? map['detail'] ?? map['statusMessage'];
+    if (candidate is String && candidate.trim().isNotEmpty) {
+      return candidate.trim();
+    }
+    return null;
+  }
+
+  bool _isSuccessPayload(dynamic data, int? statusCode) {
+    if (data is Map) {
+      final map = Map<String, dynamic>.from(data as Map);
+      final success = map['success'];
+      if (success is bool) return success;
+    }
+
+    // If API does not include explicit success flag, treat 2xx as success.
+    return statusCode != null && statusCode >= 200 && statusCode < 300;
+  }
+
+  void _showPutSuccessToast(Response<dynamic> resp) {
+    final options = resp.requestOptions;
+    if (!_isPutMethod(options.method)) return;
+    if (options.extra['showSuccessToast'] == false) return;
+
+    final statusCode = resp.statusCode;
+    final data = resp.data;
+    if (!_isSuccessPayload(data, statusCode)) return;
+
+    final customMessage = options.extra['successToastMessage'];
+    if (customMessage is String && customMessage.trim().isNotEmpty) {
+      AppToast.showSuccess(customMessage.trim());
+      return;
+    }
+
+    final responseMessage = _extractSuccessMessage(data);
+    if (responseMessage != null) {
+      AppToast.showSuccess(responseMessage);
+      return;
+    }
+
+    AppToast.showSuccess('Updated successfully');
+  }
 
   String _maskSensitiveValue(String key, dynamic value) {
     final lower = key.toLowerCase();
@@ -173,6 +222,7 @@ class ApiClient {
         },
         onResponse: (resp, handler) {
           _logResponse(resp);
+          _showPutSuccessToast(resp);
           return handler.next(resp);
         },
         onError: (err, handler) async {

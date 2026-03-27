@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/job_history_model.dart';
 import '../../../providers/partner_provider.dart';
-import 'job_history_detail_screen.dart';
+import '../upcoming_job_detail_screen.dart';
 import 'widgets/job_history_card.dart';
 
 class JobHistoryScreen extends ConsumerStatefulWidget {
@@ -52,9 +52,35 @@ class _JobHistoryScreenState extends ConsumerState<JobHistoryScreen> {
   }
 
   void _onViewDetails(JobHistoryModel job) {
+    // Extract time portion from startTime if it contains " - " format (e.g., "09:00 AM - 11:00 AM")
+    final String timeLabel;
+    final String durationLabel;
+    
+    if (job.startTime.contains(' - ')) {
+      timeLabel = job.startTime;
+      durationLabel = '';
+    } else {
+      timeLabel = job.startTime.isNotEmpty && job.endTime.isNotEmpty 
+        ? '${job.startTime} - ${job.endTime}'
+        : job.startTime;
+      durationLabel = '';
+    }
+
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => JobHistoryDetailScreen(summary: job),
+        builder: (_) => UpcomingJobDetailScreen(
+          customerName: job.customerName,
+          rating: job.displayRating,
+          serviceType: job.serviceType,
+          earnings: job.displayAmount,
+          bookingId: job.bookingId,
+          dayLabel: job.bookingDate,
+          timeLabel: timeLabel,
+          durationLabel: durationLabel,
+          address: job.address,
+          latitude: null,
+          longitude: null,
+        ),
       ),
     );
   }
@@ -128,9 +154,9 @@ class _JobHistoryScreenState extends ConsumerState<JobHistoryScreen> {
 
     return ListView.separated(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
       itemCount: _jobs.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final job = _jobs[index];
         return JobHistoryCard(

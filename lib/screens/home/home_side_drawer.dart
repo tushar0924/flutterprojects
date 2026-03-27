@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../models/user_profile_model.dart';
 import '../../providers/partner_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../session/session_manager.dart';
@@ -22,7 +23,7 @@ class HomeSideDrawer extends ConsumerStatefulWidget {
 }
 
 class _HomeSideDrawerState extends ConsumerState<HomeSideDrawer> {
-  Map<String, dynamic>? _profile;
+  UserProfile? _profile;
   bool _loading = true;
 
   @override
@@ -34,10 +35,10 @@ class _HomeSideDrawerState extends ConsumerState<HomeSideDrawer> {
   Future<void> _loadProfile() async {
     try {
       final repo = ref.read(userRepositoryProvider);
-      final res = await repo.getProfile();
-      if (mounted && res['success'] == true && res['user'] != null) {
+      final profile = await repo.getProfileModel();
+      if (mounted && profile != null) {
         setState(() {
-          _profile = res['user'] as Map<String, dynamic>;
+          _profile = profile;
           _loading = false;
         });
       } else if (mounted) {
@@ -49,9 +50,7 @@ class _HomeSideDrawerState extends ConsumerState<HomeSideDrawer> {
   }
 
   String get _initials {
-    final name = _profile?['name']?.toString();
-    if (name == null || name.isEmpty) return 'H';
-    return name.substring(0, 1).toUpperCase();
+    return _profile?.initials ?? 'H';
   }
 
   Future<void> _logout() async {
@@ -224,7 +223,7 @@ class _HomeSideDrawerState extends ConsumerState<HomeSideDrawer> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  _loading ? '...' : (_profile?['name'] as String? ?? 'Helper'),
+                  _loading ? '...' : (_profile?.displayName ?? 'Helper'),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -235,7 +234,7 @@ class _HomeSideDrawerState extends ConsumerState<HomeSideDrawer> {
                 FutureBuilder<String?>(
                   future: SessionManager().getUserPhone(),
                   builder: (_, snap) => Text(
-                    snap.data ?? (_profile?['phone'] as String? ?? ''),
+                    snap.data ?? _profile?.phone ?? '',
                     style: const TextStyle(color: Colors.white70, fontSize: 14),
                   ),
                 ),

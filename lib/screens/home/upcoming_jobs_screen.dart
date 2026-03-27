@@ -229,6 +229,8 @@ class _UpcomingJobsScreenState extends ConsumerState<UpcomingJobsScreen> {
                                     timeLabel: selected.timeLabel,
                                     durationLabel: selected.displayDuration,
                                     address: selected.address,
+                                    latitude: selected.latitude,
+                                    longitude: selected.longitude,
                                   ),
                                 ),
                               );

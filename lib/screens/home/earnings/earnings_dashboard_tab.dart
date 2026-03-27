@@ -5,7 +5,6 @@ import '../../../models/helper_bank_model.dart';
 import '../../../models/helper_earnings_history_model.dart';
 import '../../../providers/partner_provider.dart';
 import '../../../utils/toast_helper.dart';
-import 'earnings_data.dart';
 import 'earnings_models.dart';
 import 'transaction_detail_screen.dart';
 import 'widgets/earnings_dashboard_sections.dart';
@@ -81,28 +80,33 @@ class _EarningsDashboardTabState extends ConsumerState<EarningsDashboardTab> {
 
   EarningsSnapshot get _snapshot {
     if (_dashboardData == null) {
-      return kEarningsSnapshots[_selectedPeriod]!;
+      return const EarningsSnapshot(
+        availableBalance: '₹0',
+        pendingEarnings: '₹0',
+        pendingMessage: '',
+        minimumWithdrawal: 'Minimum Withdrawal: ₹500 • Processed within 24 hours',
+        withdrawalHistory: <WithdrawalRecord>[],
+      );
     }
+
     final periodKey = switch (_selectedPeriod) {
       EarningsPeriod.today => 'today',
       EarningsPeriod.thisWeek => 'week',
       EarningsPeriod.thisMonth => 'month',
     };
 
-    final section = _dashboardData![periodKey] as Map<String, dynamic>?;
+    final periodData = _dashboardData![periodKey];
+    final section = periodData is Map<String, dynamic> ? periodData : null;
     final total = (section?['totalEarnings'] as num?) ?? 0;
     final pending = (section?['pendingEarnings'] as num?) ?? 0;
-    final fallback = kEarningsSnapshots[_selectedPeriod]!;
     final records = _mapHistoryRecords();
 
     return EarningsSnapshot(
       availableBalance: '₹$total',
       pendingEarnings: '₹$pending',
-      pendingMessage: fallback.pendingMessage,
-      minimumWithdrawal: fallback.minimumWithdrawal,
-      withdrawalHistory: records.isNotEmpty
-          ? records
-          : fallback.withdrawalHistory,
+      pendingMessage: '',
+      minimumWithdrawal: 'Minimum Withdrawal: ₹500 • Processed within 24 hours',
+      withdrawalHistory: records,
     );
   }
 
@@ -233,7 +237,6 @@ class _EarningsDashboardTabState extends ConsumerState<EarningsDashboardTab> {
         _isEditingBankDetails = false;
         _isSavingBankDetails = false;
       });
-      AppToast.showSuccess(res['message']?.toString() ?? 'Bank details updated');
       return;
     }
 
@@ -244,7 +247,7 @@ class _EarningsDashboardTabState extends ConsumerState<EarningsDashboardTab> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFFF3F5F8),
+      color: const Color(0xFF0B2545),
       child: SafeArea(
         bottom: false,
         child: Column(
@@ -274,13 +277,15 @@ class _EarningsDashboardTabState extends ConsumerState<EarningsDashboardTab> {
               ),
             ),
             Expanded(
-              child: RefreshIndicator(
-                onRefresh: _loadEarnings,
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
-                  child: Column(
-                    children: [
+              child: Container(
+                color: const Color(0xFFF3F5F8),
+                child: RefreshIndicator(
+                  onRefresh: _loadEarnings,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
+                    child: Column(
+                      children: [
                     AvailableBalanceCard(
                       balance: _snapshot.availableBalance,
                       periodLabel: _selectedPeriod.tabLabel,
@@ -339,6 +344,7 @@ class _EarningsDashboardTabState extends ConsumerState<EarningsDashboardTab> {
                       },
                     ),
                     ],
+                    ),
                   ),
                 ),
               ),

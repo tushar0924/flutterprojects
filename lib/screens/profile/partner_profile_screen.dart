@@ -113,7 +113,6 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
         _isSaving = false;
         _isEditMode = false;
       });
-      AppToast.showSuccess('Profile updated successfully');
       return;
     }
 

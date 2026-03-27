@@ -198,10 +198,10 @@ class BankDetailsInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
       decoration: BoxDecoration(
         color: const Color(0xFFF9FAFB),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE4E7EC)),
       ),
       child: Column(
@@ -210,19 +210,19 @@ class BankDetailsInfoCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
                   color: const Color(0xFF0B2D52),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Icon(
-                  Icons.credit_card_outlined,
+                  Icons.account_balance_wallet_outlined,
                   color: Colors.white,
-                  size: 22,
+                  size: 24,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -230,7 +230,7 @@ class BankDetailsInfoCard extends StatelessWidget {
                     Text(
                       'Primary Account',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 30 / 2,
                         fontWeight: FontWeight.w600,
                         color: Color(0xFF101828),
                       ),
@@ -239,7 +239,7 @@ class BankDetailsInfoCard extends StatelessWidget {
                     Text(
                       'For withdrawals',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 12.5,
                         fontWeight: FontWeight.w400,
                         color: Color(0xFF667085),
                       ),
@@ -249,7 +249,7 @@ class BankDetailsInfoCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           if (!isEditing) ...[
             _BankField(
               label: 'Account Holder Name',
@@ -456,24 +456,24 @@ class _BankField extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            fontSize: 11,
+            fontSize: 21 / 2,
             color: Color(0xFF667085),
             fontWeight: FontWeight.w400,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         if (isHighlighted)
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             decoration: BoxDecoration(
               color: const Color(0xFFF2F4F7),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
               text,
               style: const TextStyle(
-                fontSize: 15,
+                fontSize: 16,
                 color: Color(0xFF101828),
                 fontWeight: FontWeight.w500,
               ),
@@ -483,8 +483,8 @@ class _BankField extends StatelessWidget {
           Row(
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 15, color: const Color(0xFF98A2B3)),
-                const SizedBox(width: 6),
+                Icon(icon, size: 17, color: const Color(0xFF98A2B3)),
+                const SizedBox(width: 8),
               ],
               Expanded(
                 child: Text(
@@ -492,7 +492,7 @@ class _BankField extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 16,
                     color: Color(0xFF101828),
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w400,
                   ),
                 ),
               ),

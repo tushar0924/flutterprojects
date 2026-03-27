@@ -2,11 +2,12 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 
-import '../models/partner_address_model.dart';
 import '../models/helper_bank_model.dart';
 import '../models/helper_earnings_history_model.dart';
 import '../models/helper_earnings_transaction_model.dart';
 import '../models/job_history_model.dart';
+import '../models/manage_service_model.dart';
+import '../models/partner_address_model.dart';
 import '../models/partner_review_model.dart';
 import '../models/upcoming_job_model.dart';
 import '../network/api_client.dart';
@@ -315,6 +316,9 @@ class PartnerRepository {
       final res = await _client.put(
         PartnerApiEndpoint.helperBank,
         data: account.toPutPayload(),
+        options: Options(
+          extra: {'successToastMessage': 'Bank details updated successfully'},
+        ),
       );
       return (res.data as Map<String, dynamic>?) ?? {};
     } on DioException catch (e) {
@@ -406,7 +410,13 @@ class PartnerRepository {
     if (address != null) data['address'] = address;
 
     try {
-      final res = await _client.put(PartnerApiEndpoint.profile, data: data);
+      final res = await _client.put(
+        PartnerApiEndpoint.profile,
+        data: data,
+        options: Options(
+          extra: {'successToastMessage': 'Profile updated successfully'},
+        ),
+      );
       return (res.data as Map<String, dynamic>?) ?? {};
     } on DioException catch (e) {
       return <String, dynamic>{
@@ -443,6 +453,9 @@ class PartnerRepository {
       final res = await _client.put(
         PartnerApiEndpoint.address,
         data: address.toPutPayload(),
+        options: Options(
+          extra: {'successToastMessage': 'Address updated successfully'},
+        ),
       );
       return (res.data as Map<String, dynamic>?) ?? {};
     } on DioException catch (e) {
@@ -475,6 +488,18 @@ class PartnerRepository {
   }
 
   /// GET /api/partner/services
+  /// GET /api/partner/services — Fetch typed manage services list
+  Future<ManageServicesApiResponse> getManageServices() async {
+    try {
+      final res = await _client.get(PartnerApiEndpoint.services);
+      final responseData = (res.data as Map<String, dynamic>?) ?? {};
+      return ManageServicesApiResponse.fromJson(responseData);
+    } on DioException catch (e) {
+      return ManageServicesApiResponse(success: false, services: const []);
+    }
+  }
+
+  /// GET /api/partner/services — Return raw response for backward compatibility
   Future<Map<String, dynamic>> getPartnerServices() async {
     try {
       final res = await _client.get(PartnerApiEndpoint.services);
@@ -506,7 +531,13 @@ class PartnerRepository {
     };
 
     try {
-      final res = await _client.put(PartnerApiEndpoint.services, data: payload);
+      final res = await _client.put(
+        PartnerApiEndpoint.services,
+        data: payload,
+        options: Options(
+          extra: {'successToastMessage': 'Services updated successfully'},
+        ),
+      );
       return (res.data as Map<String, dynamic>?) ?? {};
     } on DioException catch (e) {
       final data = e.response?.data;

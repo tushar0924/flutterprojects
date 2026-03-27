@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../models/manage_service_model.dart';
 import '../../providers/partner_provider.dart';
 import '../../utils/toast_helper.dart';
 
@@ -30,6 +32,8 @@ class _ManageServicesScreenState extends ConsumerState<ManageServicesScreen> {
   late final TextEditingController _searchController;
   List<_ServiceOption> _services = <_ServiceOption>[];
   Set<int> _selectedServiceIds = <int>{};
+  late Set<int> _initialSelectedServiceIds; // Track initial state
+  bool _hasChanges = false; // Track if selections have changed
 
   @override
   void initState() {
@@ -47,29 +51,32 @@ class _ManageServicesScreenState extends ConsumerState<ManageServicesScreen> {
   Future<void> _loadServices() async {
     setState(() => _loading = true);
 
-    final servicesRepo = ref.read(servicesRepositoryProvider);
     final partnerRepo = ref.read(partnerRepositoryProvider);
 
-    final results = await Future.wait([
-      servicesRepo.getServices(),
-      partnerRepo.getPartnerServices(),
-    ]);
-    final allServicesRes = results[0];
-    final selectedServicesRes = results[1];
+    // Fetch available services from API
+    final servicesResponse = await partnerRepo.getManageServices();
+    
+    // Fetch user's currently selected services from API
+    final selectedServicesRes = await partnerRepo.getPartnerServices();
 
     if (!mounted) return;
 
-    final fetched = _extractServices(allServicesRes);
+    // Convert ManageService models to _ServiceOption
+    final services = servicesResponse.services
+        .map((s) => _ServiceOption(id: s.serviceId, name: s.name))
+        .toList();
+
+    // Extract selected IDs from the selected services response
     final selectedIdsFromApi = _extractSelectedIds(selectedServicesRes);
     final selectedNamesFromApi = _extractSelectedNames(selectedServicesRes);
 
-    final resolvedServices = fetched.isEmpty
+    final resolvedServices = services.isEmpty
         ? _fallbackServices
               .asMap()
               .entries
               .map((e) => _ServiceOption(id: e.key + 1, name: e.value))
               .toList()
-        : fetched;
+        : services;
 
     final resolvedSelectedIds = <int>{};
     if (selectedIdsFromApi.isNotEmpty) {
@@ -92,26 +99,10 @@ class _ManageServicesScreenState extends ConsumerState<ManageServicesScreen> {
     setState(() {
       _services = resolvedServices;
       _selectedServiceIds = resolvedSelectedIds;
+      _initialSelectedServiceIds = Set<int>.from(resolvedSelectedIds); // Store initial state
+      _hasChanges = false;
       _loading = false;
     });
-  }
-
-  List<_ServiceOption> _extractServices(Map<String, dynamic> payload) {
-    final raw = payload['data'] ?? payload['services'];
-    if (raw is! List) return const <_ServiceOption>[];
-
-    final services = <_ServiceOption>[];
-    for (final item in raw) {
-      if (item is Map<String, dynamic>) {
-        final id = item['id'];
-        final name = item['name'];
-        if (id is int && name is String && name.trim().isNotEmpty) {
-          services.add(_ServiceOption(id: id, name: name.trim()));
-        }
-      }
-    }
-
-    return services;
   }
 
   Set<int> _extractSelectedIds(Map<String, dynamic> payload) {
@@ -201,20 +192,26 @@ class _ManageServicesScreenState extends ConsumerState<ManageServicesScreen> {
     return null;
   }
 
-  Future<void> _toggleService(_ServiceOption service) async {
+  void _toggleService(_ServiceOption service) {
     if (_saving) return;
 
     final wasSelected = _selectedServiceIds.contains(service.id);
-    final previous = Set<int>.from(_selectedServiceIds);
 
     setState(() {
-      _saving = true;
       if (wasSelected) {
         _selectedServiceIds.remove(service.id);
       } else {
         _selectedServiceIds.add(service.id);
       }
+      // Update hasChanges based on current selection vs initial
+      _hasChanges = !setEquals(_selectedServiceIds, _initialSelectedServiceIds);
     });
+  }
+
+  Future<void> _saveServices() async {
+    if (_saving) return;
+
+    setState(() => _saving = true);
 
     final repo = ref.read(partnerRepositoryProvider);
     final res = await repo.updatePartnerServices(
@@ -224,10 +221,16 @@ class _ManageServicesScreenState extends ConsumerState<ManageServicesScreen> {
     if (!mounted) return;
 
     final success = res['success'] == true;
-    if (!success) {
-      setState(() => _selectedServiceIds = previous);
+    if (success) {
+      // Update initial state to current state
+      setState(() {
+        _initialSelectedServiceIds = Set<int>.from(_selectedServiceIds);
+        _hasChanges = false;
+      });
+      AppToast.showSuccess('Services saved successfully');
+    } else {
       AppToast.showError(
-        (res['message'] ?? 'Failed to update services').toString(),
+        (res['message'] ?? 'Failed to save services').toString(),
       );
     }
 
@@ -361,6 +364,33 @@ class _ManageServicesScreenState extends ConsumerState<ManageServicesScreen> {
                       },
                     ),
                   ),
+                  // Show save button if there are unsaved changes
+                  if (_hasChanges)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton(
+                          onPressed: _saving ? null : _saveServices,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF22C55E),
+                            disabledBackgroundColor: const Color(0xFFA8D5BA),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: Text(
+                            _saving ? 'Saving...' : 'Save Services',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),

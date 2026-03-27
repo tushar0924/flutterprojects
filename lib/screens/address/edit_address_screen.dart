@@ -153,7 +153,6 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
 
     final success = res['success'] == true;
     if (success) {
-      AppToast.showSuccess('Address updated successfully');
       Navigator.of(context).pop();
       return;
     }
