@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
 
 import '../../models/partner_address_model.dart';
 import '../../providers/partner_provider.dart';
 import '../../utils/toast_helper.dart';
+import 'location_map_picker_screen.dart';
 
 class EditAddressScreen extends ConsumerStatefulWidget {
   const EditAddressScreen({super.key});
@@ -14,22 +14,25 @@ class EditAddressScreen extends ConsumerStatefulWidget {
 }
 
 class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
-  final TextEditingController _addressController = TextEditingController();
-  final TextEditingController _cityController = TextEditingController();
-  final TextEditingController _pinCodeController = TextEditingController();
+  final TextEditingController _buildingController = TextEditingController();
+  final TextEditingController _streetController = TextEditingController();
+  final TextEditingController _areaController = TextEditingController();
+  final TextEditingController _labelController = TextEditingController();
 
   bool _isLoading = true;
   bool _isSaving = false;
-  bool _isLocating = false;
 
   double? _latitude;
   double? _longitude;
+  String _pinCode = '';
 
-  String _initialAddress = '';
-  String _initialCity = '';
-  String _initialPinCode = '';
+  String _initialBuilding = '';
+  String _initialStreet = '';
+  String _initialArea = '';
+  String _initialLabel = '';
   double? _initialLatitude;
   double? _initialLongitude;
+  String _initialPinCode = '';
 
   @override
   void initState() {
@@ -39,9 +42,10 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
 
   @override
   void dispose() {
-    _addressController.dispose();
-    _cityController.dispose();
-    _pinCodeController.dispose();
+    _buildingController.dispose();
+    _streetController.dispose();
+    _areaController.dispose();
+    _labelController.dispose();
     super.dispose();
   }
 
@@ -52,82 +56,171 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
     final address = await repo.getPartnerAddress();
     if (!mounted) return;
 
-    _addressController.text = address.address;
-    _cityController.text = address.city;
-    _pinCodeController.text = address.pinCode;
+    // Expected persisted format: "Building/Floor || Street Address || Area/Locality"
+    final parts = address.address.split('||').map((s) => s.trim()).toList();
+
+    final normalizedAddress = address.address.replaceAll('||', ', ').trim();
+
+    _buildingController.text = parts.isNotEmpty ? parts[0] : '';
+    _streetController.text = parts.length > 1 && parts[1].isNotEmpty
+      ? parts[1]
+      : normalizedAddress;
+    _areaController.text = parts.length > 2 && parts[2].isNotEmpty
+      ? parts[2]
+      : '';
+    // Do not prefill "Save address as" from existing payload.
+    _labelController.text = '';
+
     _latitude = address.latitude;
     _longitude = address.longitude;
+    _pinCode = address.pinCode.trim();
 
-    _initialAddress = address.address;
-    _initialCity = address.city;
-    _initialPinCode = address.pinCode;
+    _initialBuilding = _buildingController.text;
+    _initialStreet = _streetController.text;
+    _initialArea = _areaController.text;
+    _initialLabel = '';
     _initialLatitude = address.latitude;
     _initialLongitude = address.longitude;
+    _initialPinCode = _pinCode;
 
     setState(() => _isLoading = false);
   }
 
   bool get _hasChanges {
-    return _addressController.text.trim() != _initialAddress.trim() ||
-        _cityController.text.trim() != _initialCity.trim() ||
-        _pinCodeController.text.trim() != _initialPinCode.trim() ||
+    return _buildingController.text.trim() != _initialBuilding.trim() ||
+        _streetController.text.trim() != _initialStreet.trim() ||
+        _areaController.text.trim() != _initialArea.trim() ||
+        _labelController.text.trim() != _initialLabel.trim() ||
         _latitude != _initialLatitude ||
-        _longitude != _initialLongitude;
+        _longitude != _initialLongitude ||
+        _pinCode != _initialPinCode;
   }
 
-  Future<void> _updateGpsLocation() async {
-    if (_isLocating) return;
+  String _extractPinCode(String text) {
+    final match = RegExp(r'\b\d{6}\b').firstMatch(text);
+    return match?.group(0) ?? '';
+  }
 
-    setState(() => _isLocating = true);
-    try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        AppToast.showError('Please enable location services');
-        return;
-      }
+  Future<void> _openMapPicker() async {
+    final result = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(
+        builder: (_) => LocationMapPickerScreen(
+          initialLatitude: _latitude,
+          initialLongitude: _longitude,
+        ),
+      ),
+    );
 
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        AppToast.showError('Location permission denied');
-        return;
-      }
-
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
-      if (!mounted) return;
+    if (result != null && mounted) {
       setState(() {
-        _latitude = position.latitude;
-        _longitude = position.longitude;
+        _latitude = result['latitude'];
+        _longitude = result['longitude'];
+        final building = (result['building'] ?? '').toString().trim();
+        final street = (result['street'] ?? '').toString().trim();
+        final area = (result['area'] ?? '').toString().trim();
+        final postalCode = (result['postalCode'] ?? '').toString().trim();
+        final fullAddress = (result['fullAddress'] ?? result['address'] ?? '')
+            .toString()
+            .trim();
+
+        if (building.isNotEmpty) _buildingController.text = building;
+        if (fullAddress.isNotEmpty) {
+          _streetController.text = fullAddress;
+        } else {
+          if (street.isNotEmpty) _streetController.text = street;
+        }
+        _areaController.text = area;
+        _pinCode = postalCode.isNotEmpty
+            ? postalCode
+            : _extractPinCode('$fullAddress ${_areaController.text} ${_streetController.text}');
       });
-    } catch (_) {
-      AppToast.showError('Unable to get GPS location');
-    } finally {
-      if (mounted) setState(() => _isLocating = false);
     }
+  }
+
+  Widget _sectionLabel(String text) {
+    return Text(
+      text,
+      style: const TextStyle(
+        color: Color(0xFF1C2430),
+        fontSize: 32 / 2,
+        fontWeight: FontWeight.w500,
+      ),
+    );
+  }
+
+  Widget _inputField({
+    required TextEditingController controller,
+    String? hint,
+    bool readOnly = false,
+    int maxLines = 1,
+  }) {
+    return TextField(
+      controller: controller,
+      readOnly: readOnly,
+      maxLines: maxLines,
+      style: const TextStyle(
+        fontSize: 17,
+        color: Color(0xFF111827),
+        fontWeight: FontWeight.w500,
+      ),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(
+          fontSize: 16,
+          color: Color(0xFF7A8392),
+          fontWeight: FontWeight.w400,
+        ),
+        filled: true,
+        fillColor: const Color(0xFFF2F4F7),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFF0B2239), width: 1.2),
+        ),
+      ),
+    );
   }
 
   Future<void> _saveAddress() async {
     if (_isSaving) return;
 
-    final address = _addressController.text.trim();
-    final city = _cityController.text.trim();
-    final pinCode = _pinCodeController.text.trim();
-    if (address.isEmpty) {
-      AppToast.showError('Please enter address');
+    final building = _buildingController.text.trim();
+    final street = _streetController.text.trim();
+    final area = _areaController.text.trim();
+    final label = _labelController.text.trim();
+    final pinCode = _pinCode.isNotEmpty
+      ? _pinCode
+      : _extractPinCode('$street $area');
+
+    if (building.isEmpty) {
+      AppToast.showError('Please enter building/floor');
       return;
     }
-    if (city.isEmpty) {
-      AppToast.showError('Please enter city');
+    if (street.isEmpty) {
+      AppToast.showError('Please enter street address');
+      return;
+    }
+    if (area.isEmpty) {
+      AppToast.showError('Please enter area/locality');
+      return;
+    }
+    if (label.isEmpty) {
+      AppToast.showError('Please enter address label');
       return;
     }
     if (pinCode.isEmpty) {
-      AppToast.showError('Please enter pin code');
+      AppToast.showError('Unable to detect pin code. Please select location again.');
       return;
     }
 
@@ -138,9 +231,12 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
 
     setState(() => _isSaving = true);
 
+    // Combine address fields
+    final fullAddress = '$building || $street || $area';
+
     final model = PartnerAddressModel(
-      address: address,
-      city: city,
+      address: fullAddress,
+      city: label,
       pinCode: pinCode,
       latitude: _latitude,
       longitude: _longitude,
@@ -153,7 +249,17 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
 
     final success = res['success'] == true;
     if (success) {
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(<String, dynamic>{
+        'address': fullAddress,
+        'fullAddress': fullAddress,
+        'building': building,
+        'street': street,
+        'area': area,
+        'city': label,
+        'pinCode': pinCode,
+        'latitude': _latitude,
+        'longitude': _longitude,
+      });
       return;
     }
 
@@ -168,7 +274,7 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F4F7),
+      backgroundColor: const Color(0xFFE3E5E8),
       appBar: AppBar(
         elevation: 0,
         backgroundColor: const Color(0xFF0B2239),
@@ -186,274 +292,154 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
           ),
         ),
       ),
+      bottomNavigationBar: Container(
+        color: Colors.white,
+        padding: EdgeInsets.fromLTRB(16, 12, 16, 18 + keyboardInset),
+        child: SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton(
+            onPressed: _isSaving ? null : _saveAddress,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0B2239),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              elevation: 0,
+            ),
+            child: _isSaving
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text(
+                    'Save Address',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 31 / 2,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+          ),
+        ),
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : LayoutBuilder(
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
-                  padding: EdgeInsets.fromLTRB(12, 14, 12, 16 + keyboardInset),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight: constraints.maxHeight,
+          : SingleChildScrollView(
+              keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.fromLTRB(0, 0, 0, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 18),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'Location Details',
+                      style: TextStyle(
+                        color: Color(0xFF101828),
+                        fontSize: 32 / 2,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 8),
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFDFDFE),
+                      borderRadius: BorderRadius.circular(18),
                     ),
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFD0D5DD)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Address',
-                                style: TextStyle(
-                                  color: Color(0xFF344054),
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF2F4F7),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: const Color(0xFFD0D5DD),
-                                  ),
-                                ),
-                                child: TextField(
-                                  controller: _addressController,
+                        _sectionLabel('Building / Floor'),
+                        const SizedBox(height: 8),
+                        _inputField(
+                          controller: _buildingController,
+                          hint: 'Enter Building / Floor address',
+                        ),
+                        const SizedBox(height: 14),
+                        _sectionLabel('Street Address'),
+                        const SizedBox(height: 8),
+                        _inputField(
+                          controller: _streetController,
+                          hint: 'Street (Recommended)',
+                          maxLines: 2,
+                        ),
+                        const SizedBox(height: 14),
+                        _sectionLabel('Area / Locality'),
+                        const SizedBox(height: 8),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: SizedBox(
+                                height: 72,
+                                child: _inputField(
+                                  controller: _areaController,
+                                  hint: 'Select area/locality from map',
                                   maxLines: 3,
-                                  decoration: const InputDecoration(
-                                    hintText: 'Enter your address',
-                                    border: InputBorder.none,
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 12,
-                                    ),
-                                    prefixIcon: Icon(
-                                      Icons.location_on_outlined,
-                                      color: Color(0xFF98A2B3),
-                                      size: 20,
-                                    ),
-                                  ),
+                                  readOnly: true,
                                 ),
                               ),
-                              const SizedBox(height: 12),
-                              const Text(
-                                'City',
-                                style: TextStyle(
-                                  color: Color(0xFF344054),
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF2F4F7),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: const Color(0xFFD0D5DD),
-                                  ),
-                                ),
-                                child: TextField(
-                                  controller: _cityController,
-                                  textCapitalization: TextCapitalization.words,
-                                  decoration: const InputDecoration(
-                                    hintText: 'Enter city',
-                                    border: InputBorder.none,
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 12,
-                                    ),
-                                    prefixIcon: Icon(
-                                      Icons.location_city_outlined,
-                                      color: Color(0xFF98A2B3),
-                                      size: 20,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              const Text(
-                                'Pin Code',
-                                style: TextStyle(
-                                  color: Color(0xFF344054),
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF2F4F7),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: const Color(0xFFD0D5DD),
-                                  ),
-                                ),
-                                child: TextField(
-                                  controller: _pinCodeController,
-                                  keyboardType: TextInputType.number,
-                                  decoration: const InputDecoration(
-                                    hintText: 'Enter pin code',
-                                    border: InputBorder.none,
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 12,
-                                    ),
-                                    prefixIcon: Icon(
-                                      Icons.pin_drop_outlined,
-                                      color: Color(0xFF98A2B3),
-                                      size: 20,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              const Text(
-                                'GPS Coordinates',
-                                style: TextStyle(
-                                  color: Color(0xFF344054),
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              SizedBox(
-                                width: double.infinity,
-                                height: 42,
-                                child: OutlinedButton.icon(
-                                  onPressed: _isLocating
-                                      ? null
-                                      : _updateGpsLocation,
-                                  icon: _isLocating
-                                      ? const SizedBox(
-                                          height: 14,
-                                          width: 14,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : const Icon(
-                                          Icons.near_me_outlined,
-                                          size: 16,
-                                        ),
-                                  label: const Text('Update GPS Location'),
-                                  style: OutlinedButton.styleFrom(
-                                    side: const BorderSide(
-                                      color: Color(0xFF0B2239),
-                                    ),
-                                    foregroundColor: const Color(0xFF0B2239),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                _latitude != null && _longitude != null
-                                    ? '✓ GPS: ${_latitude!.toStringAsFixed(4)}, ${_longitude!.toStringAsFixed(4)}'
-                                    : 'GPS not available',
-                                style: TextStyle(
-                                  color: _latitude != null && _longitude != null
-                                      ? const Color(0xFF16A34A)
-                                      : const Color(0xFF98A2B3),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEFF6FF),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFB7D2FF)),
-                          ),
-                          child: const Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('💡', style: TextStyle(fontSize: 14)),
-                              SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  'Tip: Accurate location helps customers find you easily and improves booking efficiency.',
-                                  style: TextStyle(
-                                    color: Color(0xFF1D4ED8),
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 46,
-                          child: ElevatedButton(
-                            onPressed: _isSaving ? null : _saveAddress,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0B2239),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              elevation: 2,
                             ),
-                            child: _isSaving
-                                ? const SizedBox(
-                                    height: 18,
-                                    width: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Text(
-                                    'Save',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w500,
-                                    ),
+                            const SizedBox(width: 10),
+                            InkWell(
+                              onTap: _isSaving ? null : _openMapPicker,
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                width: 78,
+                                height: 72,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: const Color(0xFF8C8F94),
                                   ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        TextButton(
-                          onPressed: _isSaving
-                              ? null
-                              : () => Navigator.of(context).pop(),
-                          child: const Text(
-                            'Cancel',
-                            style: TextStyle(
-                              color: Color(0xFF475467),
-                              fontSize: 15,
+                                ),
+                                child: const Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.location_on,
+                                      color: Color(0xFF0D9A55),
+                                      size: 30,
+                                    ),
+                                    SizedBox(height: 2),
+                                    Text(
+                                      'Change',
+                                      style: TextStyle(
+                                        color: Color(0xFF101828),
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        _sectionLabel('Save address as'),
+                        const SizedBox(height: 8),
+                        _inputField(
+                          controller: _labelController,
+                          hint: 'Enter address label',
                         ),
                       ],
                     ),
                   ),
-                );
-              },
+                ],
+              ),
             ),
     );
   }

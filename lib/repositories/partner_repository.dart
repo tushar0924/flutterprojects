@@ -109,7 +109,9 @@ class PartnerRepository {
   /// POST /api/partner/onboarding/profile
   Future<Map<String, dynamic>> submitOnboardingProfile({
     required String fullName,
+    required String phone,
     String city = '',
+    String pinCode = '',
     required String serviceArea,
     required List<int> serviceIds,
     String gender = '',
@@ -119,11 +121,13 @@ class PartnerRepository {
   }) async {
     final payload = <String, dynamic>{
       'fullName': fullName,
+      'phone': phone,
       'address': serviceArea,
       'serviceIds': serviceIds,
     };
     if (gender.isNotEmpty) payload['gender'] = gender;
     if (city.isNotEmpty) payload['city'] = city;
+    if (pinCode.isNotEmpty) payload['pinCode'] = pinCode;
     if (workTypes.isNotEmpty) payload['workTypes'] = workTypes;
     if (latitude != null) payload['latitude'] = latitude;
     if (longitude != null) payload['longitude'] = longitude;
@@ -160,7 +164,6 @@ class PartnerRepository {
     required String accountName,
     required String accountNumber,
     required String ifsc,
-    required String bankName,
   }) async {
     try {
       final res = await _client.post(
@@ -169,7 +172,6 @@ class PartnerRepository {
           'accountName': accountName,
           'accountNumber': accountNumber,
           'ifsc': ifsc,
-          'bankName': bankName,
         },
       );
       return (res.data as Map<String, dynamic>?) ?? {};

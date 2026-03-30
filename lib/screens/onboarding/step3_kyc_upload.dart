@@ -21,8 +21,6 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
   final ImagePicker _picker = ImagePicker();
 
   File? _selfieFile;
-  File? _panFile;
-  File? _policeFile;
   bool _isInitialLoading = true;
   bool _isSelfieBusy = false;
   bool _isPanBusy = false;
@@ -89,8 +87,6 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
 
       final file = File(xFile.path);
       setState(() {
-        _panFile = file;
-        _policeFile = null;
         _isPanBusy = true;
       });
 
@@ -145,7 +141,6 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
 
       final file = File(path);
       setState(() {
-        _policeFile = file;
         _isPoliceBusy = true;
       });
 
@@ -194,21 +189,6 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
         context,
       ).pushNamedAndRemoveUntil(AppRouter.chooseRole, (r) => false);
     }
-  }
-
-  String _fileName(File? file) {
-    if (file == null) return '';
-    final normalized = file.path.replaceAll('\\', '/');
-    return normalized.split('/').last;
-  }
-
-  String _panStatusText(PartnerOnboardingState onboarding) {
-    if (onboarding.panVerificationStatus.isNotEmpty) {
-      return formatOnboardingStatus(onboarding.panVerificationStatus);
-    }
-    if (onboarding.panVerified) return 'Verified';
-    if (onboarding.panUploaded) return 'Uploaded';
-    return 'Pending';
   }
 
   @override
@@ -264,24 +244,20 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
               child: Container(
                 decoration: const BoxDecoration(
                   color: Color(0xFFF4F5F7),
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
-                  ),
                 ),
                 child: isBusy
                     ? const Center(child: CircularProgressIndicator())
                     : SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(14, 18, 14, 20),
+                        padding: const EdgeInsets.fromLTRB(6, 10, 6, 14),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
                             Container(
                               width: double.infinity,
-                              padding: const EdgeInsets.all(12),
+                              padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFEFF5FF),
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
                                   color: const Color(0xFFC8DAF6),
                                 ),
@@ -338,7 +314,7 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
                               child: Column(
                                 children: <Widget>[
                                   _buildPhotoPreview(),
-                                  const SizedBox(height: 14),
+                                  const SizedBox(height: 10),
                                   _ActionOutlineButton(
                                     label: onboarding.selfieUploaded
                                         ? 'Retake & Upload'
@@ -348,14 +324,14 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
                                         ? null
                                         : _uploadSelfie,
                                   ),
-                                  if (onboarding.selfieUploaded) ...<Widget>[
-                                    const SizedBox(height: 10),
-                                    _StatusRow(
-                                      icon: Icons.check_circle,
-                                      color: const Color(0xFF1E8E3E),
-                                      text: 'Selfie uploaded successfully',
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    'Upload a clear photo of your face or take a selfie',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Color(0xFF667085),
                                     ),
-                                  ],
+                                  ),
                                 ],
                               ),
                             ),
@@ -363,27 +339,44 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
                             _buildSectionCard(
                               title: 'Pan Card',
                               subtitle: 'Front or back side',
+                              trailing: _TopActionButton(
+                                label: onboarding.panUploaded ? 'Retake' : 'Retake',
+                                onTap: uploadInProgress ? null : _uploadPan,
+                              ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: <Widget>[
                                   _ActionOutlineButton(
-                                    label: onboarding.panVerified
-                                        ? 'Re-upload PAN'
-                                        : 'Choose File',
+                                    label: 'Choose File',
                                     icon: Icons.upload_outlined,
                                     onTap: uploadInProgress ? null : _uploadPan,
                                   ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _buildSectionCard(
+                              title: 'Upload Adhar Card',
+                              subtitle: 'Front and back both side',
+                              trailing: _TopActionButton(
+                                label: 'Take Photo',
+                                onTap:
+                                    !uploadInProgress && onboarding.panVerified
+                                    ? _uploadPolice
+                                    : null,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  _buildAadhaarPreview(),
                                   const SizedBox(height: 10),
-                                  _StatusRow(
-                                    icon: onboarding.panVerified
-                                        ? Icons.verified
-                                        : Icons.description_outlined,
-                                    color: onboarding.panVerified
-                                        ? const Color(0xFF1E8E3E)
-                                        : const Color(0xFF667085),
-                                    text: _panFile != null
-                                        ? '${_fileName(_panFile)} • ${_panStatusText(onboarding)}'
-                                        : 'Status: ${_panStatusText(onboarding)}',
+                                  _ActionOutlineButton(
+                                    label: 'Choose File',
+                                    icon: Icons.upload_outlined,
+                                    onTap:
+                                        !uploadInProgress && onboarding.panVerified
+                                        ? _uploadPolice
+                                        : null,
                                   ),
                                 ],
                               ),
@@ -391,14 +384,12 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
                             const SizedBox(height: 12),
                             _buildSectionCard(
                               title: 'Police Verification Certificate',
-                              subtitle: 'JPG, PNG, or PDF',
+                              subtitle: '',
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: <Widget>[
                                   _ActionOutlineButton(
-                                    label: onboarding.policeUploaded
-                                        ? 'Re-upload Document'
-                                        : 'Choose File',
+                                    label: 'Choose File',
                                     icon: Icons.upload_outlined,
                                     onTap:
                                         !uploadInProgress &&
@@ -406,30 +397,16 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
                                         ? _uploadPolice
                                         : null,
                                   ),
-                                  const SizedBox(height: 10),
-                                  _StatusRow(
-                                    icon: onboarding.policeUploaded
-                                        ? Icons.check_circle
-                                        : Icons.picture_as_pdf_outlined,
-                                    color: onboarding.policeUploaded
-                                        ? const Color(0xFF1E8E3E)
-                                        : const Color(0xFF667085),
-                                    text: _policeFile != null
-                                        ? _fileName(_policeFile)
-                                        : onboarding.panVerified
-                                        ? 'Ready to upload'
-                                        : 'Verify PAN first',
-                                  ),
                                 ],
                               ),
                             ),
                             const SizedBox(height: 16),
                             Container(
                               width: double.infinity,
-                              padding: const EdgeInsets.all(12),
+                              padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFFF5EA),
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
                                   color: const Color(0xFFF4C892),
                                 ),
@@ -545,40 +522,35 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
         borderRadius: BorderRadius.circular(12),
         child: Image.file(
           _selfieFile!,
-          width: double.infinity,
-          height: 156,
+          width: 148,
+          height: 88,
           fit: BoxFit.cover,
         ),
       );
     }
 
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      height: 156,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
       child: Center(
         child: SizedBox(
-          width: 132,
-          height: 108,
+          width: 148,
+          height: 88,
           child: CustomPaint(
             painter: _DashedBorderPainter(
               color: const Color(0xFFD4D8DE),
-              borderRadius: 10,
+              borderRadius: 6,
             ),
             child: Center(
               child: Container(
-                width: 48,
-                height: 48,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
                   color: const Color(0xFFE9EEF5),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(6),
                 ),
                 child: const Icon(
                   Icons.person_outline,
-                  size: 26,
+                  size: 22,
                   color: Color(0xFF667085),
                 ),
               ),
@@ -586,6 +558,45 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildAadhaarPreview() {
+    Widget placeholderBox() {
+      return Expanded(
+        child: SizedBox(
+          height: 72,
+          child: CustomPaint(
+            painter: _DashedBorderPainter(
+              color: const Color(0xFFD4D8DE),
+              borderRadius: 6,
+            ),
+            child: Center(
+              child: Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE9EEF5),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Icon(
+                  Icons.description_outlined,
+                  size: 18,
+                  color: Color(0xFF8B96A6),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: <Widget>[
+        placeholderBox(),
+        const SizedBox(width: 14),
+        placeholderBox(),
+      ],
     );
   }
 
@@ -597,7 +608,7 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
@@ -667,10 +678,10 @@ class _ActionOutlineButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      height: 48,
+      height: 40,
       child: OutlinedButton.icon(
         onPressed: onTap,
-        icon: Icon(icon, size: 18),
+        icon: Icon(icon, size: 16),
         label: Text(label),
         style: OutlinedButton.styleFrom(
           foregroundColor: const Color(0xFF344054),
@@ -678,6 +689,7 @@ class _ActionOutlineButton extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
+          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
         ),
       ),
     );
@@ -703,38 +715,6 @@ class _TopActionButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
       ),
-    );
-  }
-}
-
-class _StatusRow extends StatelessWidget {
-  const _StatusRow({
-    required this.icon,
-    required this.color,
-    required this.text,
-  });
-
-  final IconData icon;
-  final Color color;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        Icon(icon, size: 16, color: color),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

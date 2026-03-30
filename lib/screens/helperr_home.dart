@@ -174,7 +174,7 @@ class _NavItem extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: active ? const Color(0xFF10AFC0) : Colors.transparent,
+                  color: active ? const Color(0xFF0B2239) : Colors.transparent,
                   shape: BoxShape.circle,
                 ),
                 child: Center(

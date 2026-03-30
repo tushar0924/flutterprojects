@@ -232,6 +232,8 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
 
   @override
   Widget build(BuildContext context) {
+    final hasUpcomingJobs = _totalUpcomingJobs > 0 || _upcomingJobs.isNotEmpty;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
       body: RefreshIndicator(
@@ -255,9 +257,7 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              GestureDetector(
-                                onTap: widget.onViewAllJobs,
-                                child: const Text(
+                              const Text(
                                   'Upcoming Jobs',
                                   style: TextStyle(
                                     fontSize: 16,
@@ -265,18 +265,18 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
                                     color: Color(0xFF1D2939),
                                   ),
                                 ),
-                              ),
-                              GestureDetector(
-                                onTap: widget.onViewAllJobs,
-                                child: const Text(
-                                  'View All',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Color(0xFF0EA5E9),
-                                    fontWeight: FontWeight.w500,
+                              if (hasUpcomingJobs)
+                                GestureDetector(
+                                  onTap: widget.onViewAllJobs,
+                                  child: const Text(
+                                    'View All',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Color(0xFF0EA5E9),
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
                                 ),
-                              ),
                             ],
                           ),
                           const SizedBox(height: 10),

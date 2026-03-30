@@ -321,7 +321,9 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
 
   Future<Map<String, dynamic>> submitProfile({
     required String fullName,
+    required String phone,
     String city = '',
+    String pinCode = '',
     required String serviceArea,
     required List<int> serviceIds,
     String gender = '',
@@ -333,7 +335,9 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
     try {
       final res = await _partnerRepository.submitOnboardingProfile(
         fullName: fullName,
+        phone: phone,
         city: city,
+        pinCode: pinCode,
         serviceArea: serviceArea,
         serviceIds: serviceIds,
         gender: gender,
@@ -345,6 +349,7 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
       state = state.copyWith(
         isSubmitting: false,
         fullName: fullName,
+        phone: phone,
         profileCompleted: success || state.profileCompleted,
         status: success ? 'PENDING_KYC' : state.status,
         errorMessage: success ? '' : _messageFromPayload(res),
@@ -461,7 +466,6 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
     required String accountName,
     required String accountNumber,
     required String ifsc,
-    required String bankName,
   }) async {
     state = state.copyWith(isSubmitting: true, errorMessage: '');
     try {
@@ -469,7 +473,6 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
         accountName: accountName,
         accountNumber: accountNumber,
         ifsc: ifsc,
-        bankName: bankName,
       );
       final success = res['success'] == true;
       final bankPayload = _extractNestedMap(res['data']);

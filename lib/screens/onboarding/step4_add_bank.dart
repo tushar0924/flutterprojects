@@ -14,11 +14,12 @@ class OnboardingStep4 extends ConsumerStatefulWidget {
 }
 
 class _OnboardingStep4State extends ConsumerState<OnboardingStep4> {
+  static const Color _navy = Color(0xFF0B2239);
+
   final _accountNameController = TextEditingController();
   final _accountNumberController = TextEditingController();
   final _confirmAccountController = TextEditingController();
   final _ifscController = TextEditingController();
-  final _bankNameController = TextEditingController();
 
   bool _isInitialLoading = true;
 
@@ -38,7 +39,6 @@ class _OnboardingStep4State extends ConsumerState<OnboardingStep4> {
     _accountNumberController.dispose();
     _confirmAccountController.dispose();
     _ifscController.dispose();
-    _bankNameController.dispose();
     super.dispose();
   }
 
@@ -60,7 +60,6 @@ class _OnboardingStep4State extends ConsumerState<OnboardingStep4> {
     final account = _accountNumberController.text.trim();
     final confirm = _confirmAccountController.text.trim();
     final ifsc = _ifscController.text.trim().toUpperCase();
-    final bankName = _bankNameController.text.trim();
 
     if (accountName.isEmpty) {
       _showMessage('Enter account name');
@@ -79,18 +78,12 @@ class _OnboardingStep4State extends ConsumerState<OnboardingStep4> {
       _showMessage('Enter a valid IFSC code');
       return;
     }
-    if (bankName.isEmpty) {
-      _showMessage('Enter bank name');
-      return;
-    }
-
     final result = await ref
         .read(partnerOnboardingProvider.notifier)
         .submitBank(
           accountName: accountName,
           accountNumber: account,
           ifsc: ifsc,
-          bankName: bankName,
         );
 
     if (!mounted) return;
@@ -128,6 +121,14 @@ class _OnboardingStep4State extends ConsumerState<OnboardingStep4> {
         _isInitialLoading ||
         onboarding.isBootstrapping ||
         onboarding.isSubmitting;
+    final isFormReady =
+        _accountNameController.text.trim().isNotEmpty &&
+        _accountNumberController.text.trim().length >= 8 &&
+        _confirmAccountController.text.trim() ==
+            _accountNumberController.text.trim() &&
+        RegExp(
+          r'^[A-Z]{4}0[A-Z0-9]{6}$',
+        ).hasMatch(_ifscController.text.trim().toUpperCase());
 
     return WillPopScope(
       onWillPop: () async {
@@ -135,12 +136,12 @@ class _OnboardingStep4State extends ConsumerState<OnboardingStep4> {
         return false;
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF1A2740),
+        backgroundColor: const Color(0xFFF3F4F6),
         body: SafeArea(
         child: Column(
           children: <Widget>[
             Container(
-              color: const Color(0xFF1A2740),
+              color: _navy,
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
               child: Row(
                 children: <Widget>[
@@ -163,7 +164,7 @@ class _OnboardingStep4State extends ConsumerState<OnboardingStep4> {
                       SizedBox(height: 2),
                       Text(
                         'Step 4 of 5 • Add Account Details',
-                        style: TextStyle(color: Colors.white60, fontSize: 12),
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
                       ),
                     ],
                   ),
@@ -172,117 +173,120 @@ class _OnboardingStep4State extends ConsumerState<OnboardingStep4> {
             ),
             Expanded(
               child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
-                  ),
-                ),
+                color: const Color(0xFFF3F4F6),
                 child: busy
                     ? const Center(child: CircularProgressIndicator())
                     : SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(18, 20, 18, 16),
+                        padding: const EdgeInsets.fromLTRB(10, 10, 10, 16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
-                            if (onboarding.errorMessage.isNotEmpty) ...<Widget>[
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFFF4E8),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: const Color(0xFFFFD2A6),
-                                  ),
-                                ),
-                                child: Text(
-                                  onboarding.errorMessage,
-                                  style: const TextStyle(
-                                    color: Color(0xFF8A4B00),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                            ],
-                            const Text(
-                              'Enter your bank details for partner payouts.',
-                              style: TextStyle(
-                                color: Color(0xFF475467),
-                                fontSize: 13,
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            _buildTextField(
-                              'Account Name',
-                              _accountNameController,
-                            ),
-                            const SizedBox(height: 12),
-                            _buildTextField(
-                              'Bank Account Number',
-                              _accountNumberController,
-                              keyboardType: TextInputType.number,
-                            ),
-                            const SizedBox(height: 12),
-                            _buildTextField(
-                              'Confirm Bank Account Number',
-                              _confirmAccountController,
-                              keyboardType: TextInputType.number,
-                            ),
-                            const SizedBox(height: 12),
-                            _buildTextField(
-                              'Enter IFSC Code',
-                              _ifscController,
-                              textCapitalization: TextCapitalization.characters,
-                            ),
-                            const SizedBox(height: 12),
-                            _buildTextField('Bank Name', _bankNameController),
-                            const SizedBox(height: 18),
-                            SizedBox(
+                            Container(
                               width: double.infinity,
-                              height: 52,
-                              child: ElevatedButton(
-                                onPressed: onboarding.isSubmitting
-                                    ? null
-                                    : _submitBank,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF8B95A0),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
+                              padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF3F4F6),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  const Text(
+                                    'Enter your bank details.',
+                                    style: TextStyle(
+                                      color: Color(0xFF1F2937),
+                                      fontSize: 13,
+                                    ),
                                   ),
-                                  elevation: 0,
-                                ),
-                                child: onboarding.isSubmitting
-                                    ? const SizedBox(
-                                        width: 24,
-                                        height: 24,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: <Widget>[
-                                          Text(
-                                            'Proceed for verification',
-                                            style: TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w600,
+                                  const SizedBox(height: 14),
+                                  _buildTextField(
+                                    'Account holder name',
+                                    _accountNameController,
+                                    hintText: 'Enter account holder name',
+                                  ),
+                                  const SizedBox(height: 14),
+                                  _buildTextField(
+                                    'Bank Account Number',
+                                    _accountNumberController,
+                                    keyboardType: TextInputType.number,
+                                    hintText: 'Enter bank account number',
+                                  ),
+                                  const SizedBox(height: 14),
+                                  _buildTextField(
+                                    'Re-Enter Bank Account Number',
+                                    _confirmAccountController,
+                                    keyboardType: TextInputType.number,
+                                    hintText: 'Re-enter bank account number',
+                                  ),
+                                  const SizedBox(height: 14),
+                                  _buildTextField(
+                                    'Enter IFSC Code',
+                                    _ifscController,
+                                    textCapitalization:
+                                        TextCapitalization.characters,
+                                    hintText: 'Enter IFSC code',
+                                  ),
+                                  if (onboarding.errorMessage.isNotEmpty) ...<Widget>[
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      onboarding.errorMessage,
+                                      style: const TextStyle(
+                                        color: Color(0xFFB42318),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                              child: SizedBox(
+                                width: double.infinity,
+                                height: 46,
+                                child: ElevatedButton(
+                                  onPressed: (onboarding.isSubmitting || !isFormReady)
+                                      ? null
+                                      : _submitBank,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _navy,
+                                    disabledBackgroundColor: _navy.withValues(alpha: 0.55),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  child: onboarding.isSubmitting
+                                      ? const SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: <Widget>[
+                                            Text(
+                                              'Proceed for verification',
+                                              style: TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                            SizedBox(width: 8),
+                                            Icon(
+                                              Icons.arrow_forward,
+                                              size: 18,
                                               color: Colors.white,
                                             ),
-                                          ),
-                                          SizedBox(width: 8),
-                                          Icon(
-                                            Icons.arrow_forward,
-                                            size: 18,
-                                            color: Colors.white,
-                                          ),
-                                        ],
-                                      ),
+                                          ],
+                                        ),
+                                ),
                               ),
                             ),
                             const SizedBox(height: 24),
@@ -292,15 +296,15 @@ class _OnboardingStep4State extends ConsumerState<OnboardingStep4> {
                                 children: <Widget>[
                                   Icon(
                                     Icons.lock_outline,
-                                    size: 16,
-                                    color: Colors.black54,
+                                    size: 14,
+                                    color: Color(0xFF98A2B3),
                                   ),
                                   SizedBox(width: 6),
                                   Text(
-                                    'Your bank details are encrypted and securely stored',
+                                    'Your documents are encrypted and securely stored',
                                     style: TextStyle(
-                                      color: Colors.black54,
-                                      fontSize: 12,
+                                      color: Color(0xFF98A2B3),
+                                      fontSize: 11,
                                     ),
                                   ),
                                 ],
@@ -322,32 +326,56 @@ class _OnboardingStep4State extends ConsumerState<OnboardingStep4> {
   Widget _buildTextField(
     String label,
     TextEditingController controller, {
+    String? hintText,
     TextInputType keyboardType = TextInputType.text,
     TextCapitalization textCapitalization = TextCapitalization.none,
   }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      textCapitalization: textCapitalization,
-      decoration: InputDecoration(
-        labelText: label,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 18,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF344054),
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller,
+          keyboardType: keyboardType,
+          textCapitalization: textCapitalization,
+          onChanged: (_) => setState(() {}),
+          style: const TextStyle(fontSize: 14),
+          decoration: InputDecoration(
+            isDense: true,
+            hintText: hintText,
+            hintStyle: const TextStyle(
+              fontSize: 13,
+              color: Color(0xFF98A2B3),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 11,
+            ),
+            filled: true,
+            fillColor: const Color(0xFFF2F4F7),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _navy, width: 1.2),
+            ),
+          ),
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.blue),
-        ),
-      ),
+      ],
     );
   }
 }

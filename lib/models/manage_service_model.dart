@@ -2,16 +2,29 @@ class ManageService {
   const ManageService({
     required this.serviceId,
     required this.name,
+    required this.isSelected,
   });
 
   final int serviceId;
   final String name;
+  final bool isSelected;
 
   factory ManageService.fromJson(Map<String, dynamic> json) {
     return ManageService(
       serviceId: _toInt(json['serviceId']),
       name: _toString(json['name']),
+      isSelected: _toBool(json['isSelected']),
     );
+  }
+
+  static bool _toBool(dynamic value) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      return normalized == 'true' || normalized == '1' || normalized == 'yes';
+    }
+    return false;
   }
 
   static int _toInt(dynamic value) {

@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../models/manage_service_model.dart';
 import '../../providers/partner_provider.dart';
 import '../../utils/toast_helper.dart';
 
@@ -53,22 +52,18 @@ class _ManageServicesScreenState extends ConsumerState<ManageServicesScreen> {
 
     final partnerRepo = ref.read(partnerRepositoryProvider);
 
-    // Fetch available services from API
     final servicesResponse = await partnerRepo.getManageServices();
-    
-    // Fetch user's currently selected services from API
-    final selectedServicesRes = await partnerRepo.getPartnerServices();
 
     if (!mounted) return;
 
-    // Convert ManageService models to _ServiceOption
     final services = servicesResponse.services
         .map((s) => _ServiceOption(id: s.serviceId, name: s.name))
         .toList();
 
-    // Extract selected IDs from the selected services response
-    final selectedIdsFromApi = _extractSelectedIds(selectedServicesRes);
-    final selectedNamesFromApi = _extractSelectedNames(selectedServicesRes);
+    final selectedIdsFromApi = servicesResponse.services
+        .where((s) => s.isSelected)
+        .map((s) => s.serviceId)
+        .toSet();
 
     final resolvedServices = services.isEmpty
         ? _fallbackServices
@@ -81,19 +76,6 @@ class _ManageServicesScreenState extends ConsumerState<ManageServicesScreen> {
     final resolvedSelectedIds = <int>{};
     if (selectedIdsFromApi.isNotEmpty) {
       resolvedSelectedIds.addAll(selectedIdsFromApi);
-    } else if (selectedNamesFromApi.isNotEmpty) {
-      for (final service in resolvedServices) {
-        if (selectedNamesFromApi.contains(service.name.toLowerCase())) {
-          resolvedSelectedIds.add(service.id);
-        }
-      }
-    } else {
-      for (final service in resolvedServices) {
-        final normalized = service.name.toLowerCase();
-        if (normalized == 'maid' || normalized == 'cook') {
-          resolvedSelectedIds.add(service.id);
-        }
-      }
     }
 
     setState(() {
@@ -103,93 +85,6 @@ class _ManageServicesScreenState extends ConsumerState<ManageServicesScreen> {
       _hasChanges = false;
       _loading = false;
     });
-  }
-
-  Set<int> _extractSelectedIds(Map<String, dynamic> payload) {
-    final source = _extractSourceMap(payload);
-    final candidates = <dynamic>[
-      source['serviceIds'],
-      source['services'],
-      source['selectedServiceIds'],
-      source['selectedServices'],
-      source['serviceId'],
-    ];
-
-    final ids = <int>{};
-    for (final candidate in candidates) {
-      if (candidate is List) {
-        for (final value in candidate) {
-          final id = _extractId(value);
-          if (id != null) ids.add(id);
-        }
-      } else {
-        final id = _extractId(candidate);
-        if (id != null) ids.add(id);
-      }
-    }
-    return ids;
-  }
-
-  Set<String> _extractSelectedNames(Map<String, dynamic> payload) {
-    final source = _extractSourceMap(payload);
-    final candidates = <dynamic>[
-      source['services'],
-      source['selectedServices'],
-      source['serviceNames'],
-      source['serviceName'],
-    ];
-
-    final names = <String>{};
-    for (final candidate in candidates) {
-      if (candidate is List) {
-        for (final value in candidate) {
-          final name = _extractName(value);
-          if (name != null) names.add(name.toLowerCase());
-        }
-      } else {
-        final name = _extractName(candidate);
-        if (name != null) names.add(name.toLowerCase());
-      }
-    }
-    return names;
-  }
-
-  Map<String, dynamic> _extractSourceMap(Map<String, dynamic> payload) {
-    final data = payload['data'];
-    if (data is Map<String, dynamic>) {
-      if (data['partner'] is Map<String, dynamic>) {
-        return data['partner'] as Map<String, dynamic>;
-      }
-      if (data['helper'] is Map<String, dynamic>) {
-        return data['helper'] as Map<String, dynamic>;
-      }
-      return data;
-    }
-    return payload;
-  }
-
-  int? _extractId(dynamic value) {
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    if (value is String) return int.tryParse(value.trim());
-    if (value is Map<String, dynamic>) {
-      final nested = value['id'] ?? value['serviceId'];
-      return _extractId(nested);
-    }
-    return null;
-  }
-
-  String? _extractName(dynamic value) {
-    if (value is String && value.trim().isNotEmpty) {
-      return value.trim();
-    }
-    if (value is Map<String, dynamic>) {
-      final nested = value['name'];
-      if (nested is String && nested.trim().isNotEmpty) {
-        return nested.trim();
-      }
-    }
-    return null;
   }
 
   void _toggleService(_ServiceOption service) {
@@ -350,7 +245,8 @@ class _ManageServicesScreenState extends ConsumerState<ManageServicesScreen> {
                   Expanded(
                     child: ListView.separated(
                       itemCount: _visibleServices.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         final service = _visibleServices[index];
                         final selected = _selectedServiceIds.contains(
