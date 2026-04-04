@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'theme/app_theme.dart';
 import 'routes/app_router.dart';
 import 'session/session_manager.dart';
@@ -9,7 +8,6 @@ import 'widgets/professional_page_transitions.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  GoogleFonts.config.allowRuntimeFetching = false;
   await SessionManager().initialize();
   runApp(const ProviderScope(child: MyApp()));
 }
