@@ -17,7 +17,6 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
   final TextEditingController _buildingController = TextEditingController();
   final TextEditingController _streetController = TextEditingController();
   final TextEditingController _areaController = TextEditingController();
-  final TextEditingController _labelController = TextEditingController();
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -29,7 +28,6 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
   String _initialBuilding = '';
   String _initialStreet = '';
   String _initialArea = '';
-  String _initialLabel = '';
   double? _initialLatitude;
   double? _initialLongitude;
   String _initialPinCode = '';
@@ -45,7 +43,6 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
     _buildingController.dispose();
     _streetController.dispose();
     _areaController.dispose();
-    _labelController.dispose();
     super.dispose();
   }
 
@@ -63,13 +60,11 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
 
     _buildingController.text = parts.isNotEmpty ? parts[0] : '';
     _streetController.text = parts.length > 1 && parts[1].isNotEmpty
-      ? parts[1]
-      : normalizedAddress;
+        ? parts[1]
+        : normalizedAddress;
     _areaController.text = parts.length > 2 && parts[2].isNotEmpty
-      ? parts[2]
-      : '';
-    // Do not prefill "Save address as" from existing payload.
-    _labelController.text = '';
+        ? parts[2]
+        : '';
 
     _latitude = address.latitude;
     _longitude = address.longitude;
@@ -78,7 +73,6 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
     _initialBuilding = _buildingController.text;
     _initialStreet = _streetController.text;
     _initialArea = _areaController.text;
-    _initialLabel = '';
     _initialLatitude = address.latitude;
     _initialLongitude = address.longitude;
     _initialPinCode = _pinCode;
@@ -90,7 +84,6 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
     return _buildingController.text.trim() != _initialBuilding.trim() ||
         _streetController.text.trim() != _initialStreet.trim() ||
         _areaController.text.trim() != _initialArea.trim() ||
-        _labelController.text.trim() != _initialLabel.trim() ||
         _latitude != _initialLatitude ||
         _longitude != _initialLongitude ||
         _pinCode != _initialPinCode;
@@ -123,16 +116,14 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
             .toString()
             .trim();
 
-        if (building.isNotEmpty) _buildingController.text = building;
-        if (fullAddress.isNotEmpty) {
-          _streetController.text = fullAddress;
-        } else {
-          if (street.isNotEmpty) _streetController.text = street;
-        }
-        _areaController.text = area;
+        _buildingController.text = building;
+        _streetController.text = street;
+        _areaController.text = fullAddress.isNotEmpty ? fullAddress : area;
         _pinCode = postalCode.isNotEmpty
             ? postalCode
-            : _extractPinCode('$fullAddress ${_areaController.text} ${_streetController.text}');
+            : _extractPinCode(
+                '$fullAddress ${_areaController.text} ${_streetController.text}',
+              );
       });
     }
   }
@@ -152,12 +143,15 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
     required TextEditingController controller,
     String? hint,
     bool readOnly = false,
-    int maxLines = 1,
+    int? maxLines = 1,
+    int? minLines,
   }) {
     return TextField(
       controller: controller,
       readOnly: readOnly,
+      minLines: minLines,
       maxLines: maxLines,
+      scrollPhysics: const NeverScrollableScrollPhysics(),
       style: const TextStyle(
         fontSize: 17,
         color: Color(0xFF111827),
@@ -198,10 +192,9 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
     final building = _buildingController.text.trim();
     final street = _streetController.text.trim();
     final area = _areaController.text.trim();
-    final label = _labelController.text.trim();
     final pinCode = _pinCode.isNotEmpty
-      ? _pinCode
-      : _extractPinCode('$street $area');
+        ? _pinCode
+        : _extractPinCode('$street $area');
 
     if (building.isEmpty) {
       AppToast.showError('Please enter building/floor');
@@ -215,12 +208,10 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
       AppToast.showError('Please enter area/locality');
       return;
     }
-    if (label.isEmpty) {
-      AppToast.showError('Please enter address label');
-      return;
-    }
     if (pinCode.isEmpty) {
-      AppToast.showError('Unable to detect pin code. Please select location again.');
+      AppToast.showError(
+        'Unable to detect pin code. Please select location again.',
+      );
       return;
     }
 
@@ -236,7 +227,7 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
 
     final model = PartnerAddressModel(
       address: fullAddress,
-      city: label,
+      city: area,
       pinCode: pinCode,
       latitude: _latitude,
       longitude: _longitude,
@@ -255,7 +246,7 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
         'building': building,
         'street': street,
         'area': area,
-        'city': label,
+        'city': area,
         'pinCode': pinCode,
         'latitude': _latitude,
         'longitude': _longitude,
@@ -330,8 +321,7 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              keyboardDismissBehavior:
-                  ScrollViewKeyboardDismissBehavior.onDrag,
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: const EdgeInsets.fromLTRB(0, 0, 0, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -381,14 +371,11 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
-                              child: SizedBox(
-                                height: 72,
-                                child: _inputField(
-                                  controller: _areaController,
-                                  hint: 'Select area/locality from map',
-                                  maxLines: 3,
-                                  readOnly: true,
-                                ),
+                              child: _inputField(
+                                controller: _areaController,
+                                hint: 'Enter area/locality or select from map',
+                                minLines: 3,
+                                maxLines: null,
                               ),
                             ),
                             const SizedBox(width: 10),
@@ -429,12 +416,7 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
                           ],
                         ),
                         const SizedBox(height: 14),
-                        _sectionLabel('Save address as'),
-                        const SizedBox(height: 8),
-                        _inputField(
-                          controller: _labelController,
-                          hint: 'Enter address label',
-                        ),
+                        const SizedBox(height: 2),
                       ],
                     ),
                   ),
