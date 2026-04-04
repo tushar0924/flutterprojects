@@ -149,6 +149,7 @@ class PartnerOnboardingState {
     this.submittedAt = '',
     this.backendCurrentStep,
     this.dashboardData = const <String, dynamic>{},
+    this.helperProfile = const <String, dynamic>{},
   });
 
   final bool isBootstrapping;
@@ -173,6 +174,7 @@ class PartnerOnboardingState {
   final String submittedAt;
   final int? backendCurrentStep;
   final Map<String, dynamic> dashboardData;
+  final Map<String, dynamic> helperProfile;
 
   String get effectiveStatus {
     final helper = dashboardData['helper'];
@@ -221,6 +223,7 @@ class PartnerOnboardingState {
     String? submittedAt,
     int? backendCurrentStep,
     Map<String, dynamic>? dashboardData,
+    Map<String, dynamic>? helperProfile,
   }) {
     return PartnerOnboardingState(
       isBootstrapping: isBootstrapping ?? this.isBootstrapping,
@@ -246,6 +249,7 @@ class PartnerOnboardingState {
       submittedAt: submittedAt ?? this.submittedAt,
       backendCurrentStep: backendCurrentStep ?? this.backendCurrentStep,
       dashboardData: dashboardData ?? this.dashboardData,
+      helperProfile: helperProfile ?? this.helperProfile,
     );
   }
 }
@@ -325,6 +329,7 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
     String city = '',
     String pinCode = '',
     required String serviceArea,
+    required bool hasExperience,
     required List<int> serviceIds,
     String gender = '',
     List<String> workTypes = const [],
@@ -339,6 +344,7 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
         city: city,
         pinCode: pinCode,
         serviceArea: serviceArea,
+        hasExperience: hasExperience,
         serviceIds: serviceIds,
         gender: gender,
         workTypes: workTypes,
@@ -443,6 +449,35 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
     state = state.copyWith(isSubmitting: true, errorMessage: '');
     try {
       final res = await _partnerRepository.uploadKycPolice(file);
+      final success = res['success'] == true;
+      state = state.copyWith(
+        isSubmitting: false,
+        policeUploaded: success,
+        kycCompleted: success || state.kycCompleted,
+        status: success ? 'PENDING_BANK' : state.status,
+        errorMessage: success ? '' : _messageFromPayload(res),
+      );
+      if (success) {
+        await refreshStatus();
+      }
+      return res;
+    } catch (e) {
+      final message = e.toString();
+      state = state.copyWith(isSubmitting: false, errorMessage: message);
+      return <String, dynamic>{'success': false, 'message': message};
+    }
+  }
+
+  Future<Map<String, dynamic>> uploadAadhar({
+    required File frontFile,
+    required File backFile,
+  }) async {
+    state = state.copyWith(isSubmitting: true, errorMessage: '');
+    try {
+      final res = await _partnerRepository.uploadKycAadhar(
+        frontFile: frontFile,
+        backFile: backFile,
+      );
       final success = res['success'] == true;
       state = state.copyWith(
         isSubmitting: false,
@@ -594,6 +629,9 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
     final helperMap = helper is Map
         ? Map<String, dynamic>.from(helper)
         : const <String, dynamic>{};
+    final helperProfile = helperMap['profile'] is Map
+      ? Map<String, dynamic>.from(helperMap['profile'] as Map)
+      : const <String, dynamic>{};
     final dashboardStatus = _firstNonEmptyString(<dynamic>[
       helperMap['onboardingStatus'],
       dashboard['onboardingStatus'],
@@ -607,6 +645,9 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
 
     state = state.copyWith(
       dashboardData: dashboard,
+      helperProfile: helperProfile.isNotEmpty
+          ? helperProfile
+          : state.helperProfile,
       status: dashboardStatus.isNotEmpty ? dashboardStatus : state.status,
       fullName: helperName.isNotEmpty ? helperName : state.fullName,
       helperId: helperId.isNotEmpty ? helperId : state.helperId,
@@ -646,6 +687,9 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
 
     // Profile complete: profile object exists and has an address
     final profileBag = helper['profile'];
+    final helperProfile = profileBag is Map
+      ? Map<String, dynamic>.from(profileBag)
+      : const <String, dynamic>{};
     final newProfileCompleted =
         profileBag is Map && profileBag['address'] != null;
 
@@ -706,6 +750,9 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
 
     state = state.copyWith(
       status: rawStatus.isNotEmpty ? rawStatus : state.status,
+      helperProfile: helperProfile.isNotEmpty
+          ? helperProfile
+          : state.helperProfile,
       profileCompleted: backendProfileCompleted || state.profileCompleted,
       kycCompleted: backendKycCompleted || state.kycCompleted,
       bankCompleted: backendBankCompleted || state.bankCompleted,

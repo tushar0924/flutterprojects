@@ -21,6 +21,7 @@ class PartnerApiEndpoint {
 
   static const String uploadSelfie = 'partner/kyc/upload-selfie';
   static const String uploadPan = 'partner/kyc/upload-pan';
+  static const String uploadAadhar = 'partner/kyc/upload-aadhar';
   static const String uploadPolice = 'partner/kyc/upload-police';
 
   static const String earningsSummary = 'partner/earnings/summary';

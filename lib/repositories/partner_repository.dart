@@ -113,6 +113,7 @@ class PartnerRepository {
     String city = '',
     String pinCode = '',
     required String serviceArea,
+    required bool hasExperience,
     required List<int> serviceIds,
     String gender = '',
     List<String> workTypes = const [],
@@ -123,6 +124,7 @@ class PartnerRepository {
       'fullName': fullName,
       'phone': phone,
       'address': serviceArea,
+      'hasExperience': hasExperience,
       'serviceIds': serviceIds,
     };
     if (gender.isNotEmpty) payload['gender'] = gender;
@@ -207,6 +209,36 @@ class PartnerRepository {
       fieldNames: const ['file', 'pan', 'panCard', 'document', 'image'],
       fallbackMessage: 'Failed to verify PAN',
     );
+  }
+
+  /// POST /api/partner/kyc/upload-aadhar — Step 3
+  Future<Map<String, dynamic>> uploadKycAadhar({
+    required File frontFile,
+    required File backFile,
+  }) async {
+    try {
+      final formData = FormData.fromMap({
+        'frontImage': await MultipartFile.fromFile(
+          frontFile.path,
+          filename: _fileNameFromPath(frontFile.path),
+        ),
+        'backImage': await MultipartFile.fromFile(
+          backFile.path,
+          filename: _fileNameFromPath(backFile.path),
+        ),
+      });
+      final res = await _client.post(PartnerApiEndpoint.uploadAadhar, data: formData);
+      return (res.data as Map<String, dynamic>?) ?? {};
+    } on DioException catch (e) {
+      return <String, dynamic>{
+        'success': false,
+        'message': _extractErrorMessage(
+          e,
+          fallback: 'Failed to upload Aadhaar images',
+        ),
+        'statusCode': e.response?.statusCode,
+      };
+    }
   }
 
   /// POST /api/partner/kyc/upload-police — Step 3

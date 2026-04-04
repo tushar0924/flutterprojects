@@ -27,6 +27,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
+  String _serviceAreaForSubmit = '';
   String _selectedCity = '';
   String _selectedPinCode = '';
 
@@ -67,10 +68,218 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
       if (onboarding.phone.isNotEmpty) {
         _phoneController.text = _normalizePhone(onboarding.phone);
       }
+      _hydrateSavedProfile(onboarding);
       _hasHydratedForm = true;
     }
 
     setState(() => _isInitialLoading = false);
+  }
+
+  void _hydrateSavedProfile(PartnerOnboardingState onboarding) {
+    final profile = _readSavedProfile(onboarding);
+    if (profile.isEmpty) return;
+
+    final savedAddress = _firstNonEmptyProfileString(
+      profile,
+      const <String>['address', 'serviceArea', 'fullAddress'],
+    );
+    final savedCity = _firstNonEmptyProfileString(
+      profile,
+      const <String>['city', 'district'],
+    );
+    final savedPinCode = _firstNonEmptyProfileString(
+      profile,
+      const <String>['pinCode', 'pincode', 'postalCode'],
+    );
+    final savedGender = _firstNonEmptyProfileString(
+      profile,
+      const <String>['gender', 'sex'],
+    );
+    final savedExperience = _readExperience(profile);
+    final savedLatitude = _firstNonEmptyProfileDouble(
+      profile,
+      const <String>['latitude', 'lat'],
+    );
+    final savedLongitude = _firstNonEmptyProfileDouble(
+      profile,
+      const <String>['longitude', 'lng', 'lon'],
+    );
+    final savedServiceIds = _readServiceIds(profile);
+
+    if (_nameController.text.trim().isEmpty) {
+      final profileName = _firstNonEmptyProfileString(
+        profile,
+        const <String>['fullName', 'name'],
+      );
+      if (profileName.isNotEmpty) {
+        _nameController.text = profileName;
+      }
+    }
+
+    if (_phoneController.text.trim().isEmpty) {
+      final profilePhone = _firstNonEmptyProfileString(
+        profile,
+        const <String>['phone', 'mobile'],
+      );
+      if (profilePhone.isNotEmpty) {
+        _phoneController.text = _normalizePhone(profilePhone);
+      }
+    }
+
+    if (savedAddress.isNotEmpty) {
+      _serviceAreaForSubmit = savedAddress;
+    }
+
+    if (_addressController.text.trim().isEmpty && savedAddress.isNotEmpty) {
+      _addressController.text = _extractAreaLocalityFromAddress(savedAddress);
+    }
+
+    if (_selectedCity.isEmpty) {
+      _selectedCity = savedCity.isNotEmpty
+          ? savedCity
+          : _resolveCityForPayload('', savedAddress);
+    }
+
+    if (_selectedPinCode.isEmpty) {
+      _selectedPinCode = savedPinCode.isNotEmpty
+          ? savedPinCode
+          : _extractPinCodeFromAddress(_addressController.text);
+    }
+
+    if (_gender == null) {
+      _gender = _normalizeGender(savedGender);
+    }
+
+    if (_experience == null) {
+      _experience = savedExperience;
+    }
+
+    if (_capturedLatitude == null) {
+      _capturedLatitude = savedLatitude;
+    }
+    if (_capturedLongitude == null) {
+      _capturedLongitude = savedLongitude;
+    }
+
+    if (_selectedServiceIds.isEmpty && savedServiceIds.isNotEmpty) {
+      _selectedServiceIds
+        ..clear()
+        ..addAll(savedServiceIds);
+    }
+  }
+
+  Map<String, dynamic> _readSavedProfile(PartnerOnboardingState onboarding) {
+    if (onboarding.helperProfile.isNotEmpty) {
+      return onboarding.helperProfile;
+    }
+
+    final helper = onboarding.dashboardData['helper'];
+    if (helper is Map && helper['profile'] is Map) {
+      return Map<String, dynamic>.from(helper['profile'] as Map);
+    }
+
+    return const <String, dynamic>{};
+  }
+
+  String _firstNonEmptyProfileString(
+    Map<String, dynamic> profile,
+    List<String> keys,
+  ) {
+    for (final key in keys) {
+      final value = profile[key];
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+      if (value is num) {
+        return value.toString();
+      }
+    }
+    return '';
+  }
+
+  double? _firstNonEmptyProfileDouble(
+    Map<String, dynamic> profile,
+    List<String> keys,
+  ) {
+    for (final key in keys) {
+      final value = profile[key];
+      if (value is num) {
+        return value.toDouble();
+      }
+      if (value is String) {
+        final parsed = double.tryParse(value.trim());
+        if (parsed != null) {
+          return parsed;
+        }
+      }
+    }
+    return null;
+  }
+
+  Set<int> _readServiceIds(Map<String, dynamic> profile) {
+    final fromIds = profile['serviceIds'];
+    if (fromIds is List) {
+      return fromIds
+          .map((e) {
+            if (e is int) return e;
+            if (e is num) return e.toInt();
+            if (e is String) return int.tryParse(e.trim());
+            return null;
+          })
+          .whereType<int>()
+          .toSet();
+    }
+
+    final fromServices = profile['services'];
+    if (fromServices is List) {
+      return fromServices
+          .map((e) {
+            if (e is int) return e;
+            if (e is num) return e.toInt();
+            if (e is String) return int.tryParse(e.trim());
+            if (e is Map) {
+              final id = e['id'];
+              if (id is int) return id;
+              if (id is num) return id.toInt();
+              if (id is String) return int.tryParse(id.trim());
+            }
+            return null;
+          })
+          .whereType<int>()
+          .toSet();
+    }
+
+    return <int>{};
+  }
+
+  String? _readExperience(Map<String, dynamic> profile) {
+    final raw = profile['experience'] ??
+        profile['hasExperience'] ??
+        profile['isExperienced'] ??
+        profile['previousExperience'];
+
+    if (raw is bool) {
+      return raw ? 'Yes' : 'No';
+    }
+
+    if (raw is String) {
+      final value = raw.trim().toLowerCase();
+      if (value == 'yes' || value == 'y' || value == 'true') return 'Yes';
+      if (value == 'no' || value == 'n' || value == 'false') return 'No';
+    }
+
+    if (raw is num) {
+      return raw == 0 ? 'No' : 'Yes';
+    }
+
+    return null;
+  }
+
+  String? _normalizeGender(String rawGender) {
+    final value = rawGender.trim().toLowerCase();
+    if (value == 'female' || value == 'f') return 'Female';
+    if (value == 'male' || value == 'm') return 'Male';
+    return null;
   }
 
   String _normalizePhone(String phone) {
@@ -85,12 +294,13 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
     final name = _nameController.text.trim();
     final phone = _normalizePhone(_phoneController.text.trim());
     final address = _addressController.text.trim();
+    final city = _resolveCityForPayload(_selectedCity, address);
     return name.isNotEmpty &&
         phone.length == 10 &&
         _gender != null &&
         _experience != null &&
         address.isNotEmpty &&
-        _selectedCity.isNotEmpty &&
+      city.isNotEmpty &&
         _selectedPinCode.isNotEmpty &&
         _selectedServiceIds.isNotEmpty &&
         _capturedLatitude != null &&
@@ -102,20 +312,68 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
     return match?.group(0) ?? '';
   }
 
-  String _extractCityFromAddress(String address) {
-    final parts = address
+  String _extractAreaLocalityFromAddress(String address) {
+    final trimmed = address.trim();
+    if (trimmed.isEmpty) return '';
+
+    if (trimmed.contains('||')) {
+      final parts = trimmed
+          .split('||')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+      if (parts.isNotEmpty) {
+        return parts.last;
+      }
+    }
+
+    final parts = trimmed
         .split(',')
         .map((e) => e.trim())
         .where((e) => e.isNotEmpty)
         .toList();
+    if (parts.isEmpty) return '';
 
-    for (var i = parts.length - 1; i >= 0; i--) {
-      final part = parts[i];
-      if (part.toLowerCase() == 'india') continue;
-      if (RegExp(r'\d{6}').hasMatch(part)) continue;
-      return part;
+    if (parts.length == 1) return parts.first;
+
+    if (parts.first.toLowerCase() == 'india') return parts.last;
+    return parts.first;
+  }
+
+  String _extractCityFromAddress(String address) {
+    if (address.contains('||')) {
+      return '';
+    }
+
+    final rawParts = address
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    if (rawParts.isEmpty) return '';
+
+    final parts = rawParts
+        .map((part) => part.replaceAll(RegExp(r'\b\d{6}\b'), '').trim())
+        .where((part) => part.isNotEmpty && part.toLowerCase() != 'india')
+        .toList();
+    if (parts.isEmpty) return '';
+    if (parts.length >= 2) {
+      return parts[parts.length - 2];
+    }
+    if (parts.first.toLowerCase() == 'jaipur') {
+      return parts.first;
     }
     return '';
+  }
+
+  String _resolveCityForPayload(String selectedCity, String address) {
+    final explicit = selectedCity.trim();
+    if (explicit.isNotEmpty) return explicit;
+
+    final extracted = _extractCityFromAddress(address).trim();
+    if (extracted.isNotEmpty) return extracted;
+
+    return 'Jaipur';
   }
 
   Future<void> _submitProfile() async {
@@ -123,11 +381,9 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
     final name = _nameController.text.trim();
     final phone = _normalizePhone(_phoneController.text.trim());
     final address = _addressController.text.trim();
-    final city = _selectedCity.trim().isNotEmpty
-      ? _selectedCity.trim()
-      : _extractCityFromAddress(address);
+    final city = _resolveCityForPayload(_selectedCity, address);
     final pinCode = _selectedPinCode.trim().isNotEmpty
-      ? _selectedPinCode.trim()
+        ? _selectedPinCode.trim()
       : _extractPinCodeFromAddress(address);
 
     if (name.isEmpty) {
@@ -144,10 +400,6 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
     }
     if (address.isEmpty) {
       _showMessage('Please enter your address');
-      return;
-    }
-    if (city.isEmpty) {
-      _showMessage('Please select address again to capture city');
       return;
     }
     if (pinCode.isEmpty) {
@@ -169,6 +421,20 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
 
     setState(() => _isSubmitting = true);
 
+    final requestPayload = <String, dynamic>{
+      'fullName': name,
+      'gender': _gender?.toUpperCase() ?? '',
+      'phone': phone,
+      'address': address,
+      'city': city,
+      'pinCode': pinCode,
+      'latitude': _capturedLatitude,
+      'longitude': _capturedLongitude,
+      'hasExperience': _experience == 'Yes',
+      'serviceIds': _selectedServiceIds.toList(),
+    };
+    debugPrint('[Onboarding Step2] Submit payload: $requestPayload');
+
     final result = await ref
         .read(partnerOnboardingProvider.notifier)
         .submitProfile(
@@ -177,6 +443,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
           city: city,
           pinCode: pinCode,
           serviceArea: address,
+          hasExperience: _experience == 'Yes',
           serviceIds: _selectedServiceIds.toList(),
           gender: _gender?.toUpperCase() ?? '',
           workTypes: const <String>[],
@@ -228,20 +495,28 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
       final lat = (result['latitude'] as num?)?.toDouble();
       final lng = (result['longitude'] as num?)?.toDouble();
       final city = (result['city'] ?? '').toString().trim();
-        final pinCode = (result['pinCode'] ?? result['postalCode'] ?? '')
+      final area = (result['area'] ?? '').toString().trim();
+      final pinCode = (result['pinCode'] ?? result['postalCode'] ?? '')
           .toString()
           .trim();
       final fullAddress =
           (result['fullAddress'] ?? result['address'] ?? '').toString().trim();
+      final displayAddress = area.isNotEmpty
+          ? area
+          : _extractAreaLocalityFromAddress(fullAddress);
 
       setState(() {
-        if (fullAddress.isNotEmpty) {
-          _addressController.text = fullAddress;
+        if (displayAddress.isNotEmpty) {
+          _addressController.text = displayAddress;
         }
-        _selectedCity = city.isNotEmpty ? city : _extractCityFromAddress(fullAddress);
+        _serviceAreaForSubmit =
+            fullAddress.isNotEmpty ? fullAddress : displayAddress;
+        final citySource =
+            fullAddress.isNotEmpty ? fullAddress : displayAddress;
+        _selectedCity = _resolveCityForPayload(city, citySource);
         _selectedPinCode = pinCode.isNotEmpty
             ? pinCode
-            : _extractPinCodeFromAddress(fullAddress);
+            : _extractPinCodeFromAddress(citySource);
         _capturedLatitude = lat;
         _capturedLongitude = lng;
       });

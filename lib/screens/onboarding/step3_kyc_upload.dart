@@ -21,9 +21,12 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
   final ImagePicker _picker = ImagePicker();
 
   File? _selfieFile;
+  File? _aadhaarFrontFile;
+  File? _aadhaarBackFile;
   bool _isInitialLoading = true;
   bool _isSelfieBusy = false;
   bool _isPanBusy = false;
+  bool _isAadhaarBusy = false;
   bool _isPoliceBusy = false;
 
   @override
@@ -164,6 +167,77 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
     }
   }
 
+  Future<void> _uploadAadhaarFrontBack() async {
+    if (_isAadhaarBusy) return;
+
+    final onboarding = ref.read(partnerOnboardingProvider);
+    if (!onboarding.panVerified) {
+      _showMessage('Upload PAN successfully before uploading Aadhaar');
+      return;
+    }
+
+    try {
+      final frontPicked = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 90,
+      );
+      if (frontPicked == null) return;
+
+      final frontFile = File(frontPicked.path);
+      if (mounted) {
+        setState(() {
+          _aadhaarFrontFile = frontFile;
+          _aadhaarBackFile = null;
+        });
+      }
+
+      AppToast.showSuccess('Front Aadhaar selected. Now choose back side image.');
+
+      final backPicked = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 90,
+      );
+      if (backPicked == null) {
+        _showMessage('Back side image is mandatory to upload Aadhaar');
+        return;
+      }
+
+      final backFile = File(backPicked.path);
+      if (mounted) {
+        setState(() {
+          _aadhaarBackFile = backFile;
+          _isAadhaarBusy = true;
+        });
+      }
+
+      ref.read(partnerOnboardingProvider.notifier).prepareForPoliceUpload();
+      final result = await ref
+          .read(partnerOnboardingProvider.notifier)
+          .uploadAadhar(frontFile: frontFile, backFile: backFile);
+
+      if (!mounted) return;
+      setState(() => _isAadhaarBusy = false);
+
+      if (result['success'] == true) {
+        final data = result['data'];
+        final payloadLog = <String, dynamic>{
+          'frontImage': frontFile.path,
+          'backImage': backFile.path,
+        };
+        debugPrint('[Onboarding Step3] Aadhaar upload form-data: $payloadLog');
+        debugPrint('[Onboarding Step3] Aadhaar upload response: $data');
+        AppToast.showSuccess('Aadhaar front & back uploaded successfully');
+      } else {
+        AppToast.showError(
+          result['message'] as String? ?? 'Failed to upload Aadhaar images',
+        );
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isAadhaarBusy = false);
+      _showMessage('Failed to upload Aadhaar images: $e');
+    }
+  }
+
   void _goToNext() {
     final onboarding = ref.read(partnerOnboardingProvider);
     if (!onboarding.isKycReadyForNext && !onboarding.kycCompleted) {
@@ -196,7 +270,11 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
     final onboarding = ref.watch(partnerOnboardingProvider);
     final nextEnabled = onboarding.isKycReadyForNext || onboarding.kycCompleted;
     final uploadInProgress =
-        _isSelfieBusy || _isPanBusy || _isPoliceBusy || onboarding.isSubmitting;
+      _isSelfieBusy ||
+      _isPanBusy ||
+      _isAadhaarBusy ||
+      _isPoliceBusy ||
+      onboarding.isSubmitting;
     final isBusy = _isInitialLoading || onboarding.isBootstrapping;
 
     return WillPopScope(
@@ -359,10 +437,12 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
                               title: 'Upload Adhar Card',
                               subtitle: 'Front and back both side',
                               trailing: _TopActionButton(
-                                label: 'Take Photo',
+                                label: _aadhaarFrontFile != null || _aadhaarBackFile != null
+                                    ? 'Retake'
+                                    : 'Choose Files',
                                 onTap:
                                     !uploadInProgress && onboarding.panVerified
-                                    ? _uploadPolice
+                                    ? _uploadAadhaarFrontBack
                                     : null,
                               ),
                               child: Column(
@@ -371,12 +451,20 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
                                   _buildAadhaarPreview(),
                                   const SizedBox(height: 10),
                                   _ActionOutlineButton(
-                                    label: 'Choose File',
+                                    label: 'Choose Front & Back',
                                     icon: Icons.upload_outlined,
                                     onTap:
                                         !uploadInProgress && onboarding.panVerified
-                                        ? _uploadPolice
+                                        ? _uploadAadhaarFrontBack
                                         : null,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    'Both front and back Aadhaar images are mandatory',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Color(0xFF667085),
+                                    ),
                                   ),
                                 ],
                               ),
@@ -562,40 +650,86 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
   }
 
   Widget _buildAadhaarPreview() {
-    Widget placeholderBox() {
+    Widget placeholderBox(String side, File? file) {
       return Expanded(
         child: SizedBox(
           height: 72,
-          child: CustomPaint(
-            painter: _DashedBorderPainter(
-              color: const Color(0xFFD4D8DE),
-              borderRadius: 6,
-            ),
-            child: Center(
-              child: Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE9EEF5),
-                  borderRadius: BorderRadius.circular(6),
+          child: file != null
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: <Widget>[
+                      Image.file(file, fit: BoxFit.cover),
+                      Align(
+                        alignment: Alignment.topLeft,
+                        child: Container(
+                          margin: const EdgeInsets.all(4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            side,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : CustomPaint(
+                  painter: _DashedBorderPainter(
+                    color: const Color(0xFFD4D8DE),
+                    borderRadius: 6,
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE9EEF5),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Icon(
+                            Icons.description_outlined,
+                            size: 18,
+                            color: Color(0xFF8B96A6),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          side,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Color(0xFF667085),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                child: const Icon(
-                  Icons.description_outlined,
-                  size: 18,
-                  color: Color(0xFF8B96A6),
-                ),
-              ),
-            ),
-          ),
         ),
       );
     }
 
     return Row(
       children: <Widget>[
-        placeholderBox(),
+        placeholderBox('Front', _aadhaarFrontFile),
         const SizedBox(width: 14),
-        placeholderBox(),
+        placeholderBox('Back', _aadhaarBackFile),
       ],
     );
   }
