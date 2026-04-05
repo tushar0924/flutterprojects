@@ -5,6 +5,7 @@ import '../../utils/toast_helper.dart';
 import '../../providers/partner_onboarding_provider.dart';
 import '../../routes/app_router.dart';
 import '../address/edit_address_screen.dart';
+import '../address/location_map_picker_screen.dart';
 import '../../widgets/back_confirmation_dialog.dart';
 
 class OnboardingStep2 extends ConsumerStatefulWidget {
@@ -131,7 +132,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
     }
 
     if (_addressController.text.trim().isEmpty && savedAddress.isNotEmpty) {
-      _addressController.text = _extractAreaLocalityFromAddress(savedAddress);
+      _addressController.text = savedAddress;
     }
 
     if (_selectedCity.isEmpty) {
@@ -380,7 +381,9 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
     if (_isSubmitting) return;
     final name = _nameController.text.trim();
     final phone = _normalizePhone(_phoneController.text.trim());
-    final address = _addressController.text.trim();
+    final address = _serviceAreaForSubmit.trim().isNotEmpty
+        ? _serviceAreaForSubmit.trim()
+      : _addressController.text.trim();
     final city = _resolveCityForPayload(_selectedCity, address);
     final pinCode = _selectedPinCode.trim().isNotEmpty
         ? _selectedPinCode.trim()
@@ -479,7 +482,66 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
     }
   }
 
+  void _applyPickedAddress(Map<String, dynamic> result) {
+    final lat = (result['latitude'] as num?)?.toDouble();
+    final lng = (result['longitude'] as num?)?.toDouble();
+    final city = (result['city'] ?? '').toString().trim();
+    final area = (result['area'] ?? '').toString().trim();
+    final pinCode = (result['pinCode'] ?? result['postalCode'] ?? '')
+        .toString()
+        .trim();
+    final fullAddress =
+        (result['fullAddress'] ?? result['address'] ?? '').toString().trim();
+    final displayAddress = area.isNotEmpty
+        ? area
+        : _extractAreaLocalityFromAddress(fullAddress);
+
+    setState(() {
+      final addressForInput =
+          fullAddress.isNotEmpty ? fullAddress : displayAddress;
+      if (addressForInput.isNotEmpty) {
+        _addressController.text = addressForInput;
+      }
+
+      _serviceAreaForSubmit =
+          fullAddress.isNotEmpty ? fullAddress : addressForInput;
+
+      final citySource =
+          fullAddress.isNotEmpty ? fullAddress : _addressController.text;
+      _selectedCity = _resolveCityForPayload(city, citySource);
+      _selectedPinCode = pinCode.isNotEmpty
+          ? pinCode
+          : _extractPinCodeFromAddress(citySource);
+      _capturedLatitude = lat;
+      _capturedLongitude = lng;
+    });
+  }
+
   Future<void> _openAddressMapPicker() async {
+    if (_isCapturingLocation) return;
+    setState(() => _isCapturingLocation = true);
+
+    try {
+      final result = await Navigator.of(context).push<Map<String, dynamic>>(
+        MaterialPageRoute(
+          builder: (_) => LocationMapPickerScreen(
+            initialLatitude: _capturedLatitude,
+            initialLongitude: _capturedLongitude,
+          ),
+        ),
+      );
+
+      if (!mounted || result == null) return;
+
+      _applyPickedAddress(result);
+    } catch (e) {
+      _showMessage('Unable to open map picker: $e');
+    } finally {
+      if (mounted) setState(() => _isCapturingLocation = false);
+    }
+  }
+
+  Future<void> _openEditAddressScreen() async {
     if (_isCapturingLocation) return;
     setState(() => _isCapturingLocation = true);
 
@@ -492,34 +554,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
 
       if (!mounted || result == null) return;
 
-      final lat = (result['latitude'] as num?)?.toDouble();
-      final lng = (result['longitude'] as num?)?.toDouble();
-      final city = (result['city'] ?? '').toString().trim();
-      final area = (result['area'] ?? '').toString().trim();
-      final pinCode = (result['pinCode'] ?? result['postalCode'] ?? '')
-          .toString()
-          .trim();
-      final fullAddress =
-          (result['fullAddress'] ?? result['address'] ?? '').toString().trim();
-      final displayAddress = area.isNotEmpty
-          ? area
-          : _extractAreaLocalityFromAddress(fullAddress);
-
-      setState(() {
-        if (displayAddress.isNotEmpty) {
-          _addressController.text = displayAddress;
-        }
-        _serviceAreaForSubmit =
-            fullAddress.isNotEmpty ? fullAddress : displayAddress;
-        final citySource =
-            fullAddress.isNotEmpty ? fullAddress : displayAddress;
-        _selectedCity = _resolveCityForPayload(city, citySource);
-        _selectedPinCode = pinCode.isNotEmpty
-            ? pinCode
-            : _extractPinCodeFromAddress(citySource);
-        _capturedLatitude = lat;
-        _capturedLongitude = lng;
-      });
+      _applyPickedAddress(result);
     } catch (e) {
       _showMessage('Unable to open map picker: $e');
     } finally {
@@ -665,7 +700,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
             ),
           ),
           InkWell(
-            onTap: _isCapturingLocation ? null : _openAddressMapPicker,
+            onTap: _isCapturingLocation ? null : _openEditAddressScreen,
             borderRadius: BorderRadius.circular(18),
             child: const Padding(
               padding: EdgeInsets.all(2),

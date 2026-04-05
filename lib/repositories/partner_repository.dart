@@ -323,7 +323,7 @@ class PartnerRepository {
     }
   }
 
-  /// GET /api/helper/bank
+  /// GET /api/partner/bank-details
   Future<HelperBankResponse> getHelperBank() async {
     try {
       final res = await _client.get(PartnerApiEndpoint.helperBank);
@@ -344,7 +344,7 @@ class PartnerRepository {
     }
   }
 
-  /// PUT /api/helper/bank
+  /// PUT /api/partner/bank-details
   Future<Map<String, dynamic>> updateHelperBank(HelperBankAccount account) async {
     try {
       final res = await _client.put(

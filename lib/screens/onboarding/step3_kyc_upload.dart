@@ -21,6 +21,8 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
   final ImagePicker _picker = ImagePicker();
 
   File? _selfieFile;
+  File? _panFile;
+  File? _policeFile;
   File? _aadhaarFrontFile;
   File? _aadhaarBackFile;
   bool _isInitialLoading = true;
@@ -110,6 +112,9 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
           (verificationStatus.isEmpty || verificationStatus == 'VERIFIED');
 
       if (canProceedToPolice) {
+        setState(() {
+          _panFile = file;
+        });
         AppToast.showSuccess(
           verificationStatus == 'VERIFIED' ? 'PAN verified successfully' : 'PAN uploaded successfully',
         );
@@ -153,7 +158,12 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
           .uploadPolice(file);
 
       if (!mounted) return;
-      setState(() => _isPoliceBusy = false);
+      setState(() {
+        _isPoliceBusy = false;
+        if (uploadResult['success'] == true) {
+          _policeFile = file;
+        }
+      });
       if (uploadResult['success'] == true) {
         AppToast.showSuccess('Police verification document uploaded successfully');
       } else {
@@ -416,16 +426,22 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
                             const SizedBox(height: 12),
                             _buildSectionCard(
                               title: 'Pan Card',
-                              subtitle: 'Front or back side',
+                              subtitle: onboarding.panUploaded
+                                  ? 'Uploaded successfully'
+                                  : 'Front or back side',
                               trailing: _TopActionButton(
-                                label: onboarding.panUploaded ? 'Retake' : 'Retake',
+                                label: onboarding.panUploaded ? 'Re-upload' : 'Choose File',
                                 onTap: uploadInProgress ? null : _uploadPan,
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: <Widget>[
+                                  _buildPanPreview(onboarding),
+                                  const SizedBox(height: 10),
                                   _ActionOutlineButton(
-                                    label: 'Choose File',
+                                    label: onboarding.panUploaded
+                                        ? 'Re-upload PAN'
+                                        : 'Choose File',
                                     icon: Icons.upload_outlined,
                                     onTap: uploadInProgress ? null : _uploadPan,
                                   ),
@@ -472,12 +488,18 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
                             const SizedBox(height: 12),
                             _buildSectionCard(
                               title: 'Police Verification Certificate',
-                              subtitle: '',
+                              subtitle: onboarding.policeUploaded
+                                  ? 'Uploaded successfully'
+                                  : 'Upload JPG, PNG, or PDF',
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: <Widget>[
+                                  _buildPolicePreview(onboarding),
+                                  const SizedBox(height: 10),
                                   _ActionOutlineButton(
-                                    label: 'Choose File',
+                                    label: onboarding.policeUploaded
+                                        ? 'Re-upload File'
+                                        : 'Choose File',
                                     icon: Icons.upload_outlined,
                                     onTap:
                                         !uploadInProgress &&
@@ -540,7 +562,7 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
                                 onPressed: nextEnabled ? _goToNext : null,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: nextEnabled
-                                      ? const Color(0xFF7E8D9C)
+                                      ? const Color(0xFF0B2842)
                                       : const Color(0xFFC4CCD4),
                                   disabledBackgroundColor: const Color(
                                     0xFFC4CCD4,
@@ -731,6 +753,138 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
         const SizedBox(width: 14),
         placeholderBox('Back', _aadhaarBackFile),
       ],
+    );
+  }
+
+  Widget _buildPanPreview(PartnerOnboardingState onboarding) {
+    final fileName = _panFile?.path.split(Platform.pathSeparator).last ?? '';
+
+    if (!onboarding.panUploaded && fileName.isEmpty) {
+      return _buildUploadPlaceholder(
+        icon: Icons.badge_outlined,
+        title: 'No PAN uploaded yet',
+        subtitle: 'Upload a clear PAN image to continue',
+      );
+    }
+
+    return _buildUploadedInfo(
+      icon: Icons.check_circle,
+      title: fileName.isNotEmpty ? fileName : 'PAN card uploaded',
+      subtitle: '',
+    );
+  }
+
+  Widget _buildPolicePreview(PartnerOnboardingState onboarding) {
+    final fileName = _policeFile?.path.split(Platform.pathSeparator).last ?? '';
+
+    if (!onboarding.policeUploaded && fileName.isEmpty) {
+      return _buildUploadPlaceholder(
+        icon: Icons.verified_user_outlined,
+        title: 'No police document uploaded yet',
+        subtitle: 'Upload certificate copy in JPG, PNG, or PDF format',
+      );
+    }
+
+    return _buildUploadedInfo(
+      icon: Icons.check_circle,
+      title: fileName.isNotEmpty
+          ? fileName
+          : 'Police verification document uploaded',
+      subtitle: '',
+    );
+  }
+
+  Widget _buildUploadPlaceholder({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE4E7EC)),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(icon, color: const Color(0xFF98A2B3), size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF344054),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF667085),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUploadedInfo({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFECFDF3),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFA6F4C5)),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(icon, color: const Color(0xFF12B76A), size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF065F46),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (subtitle.trim().isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF047857),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

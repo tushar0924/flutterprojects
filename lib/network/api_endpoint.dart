@@ -28,7 +28,7 @@ class PartnerApiEndpoint {
   static const String earningsHistory = 'partner/earnings/history';
   static const String helperEarningsDashboard = 'helper/earnings/dashboard';
   static const String helperEarningsHistory = 'helper/earnings/history';
-  static const String helperBank = 'helper/bank';
+  static const String helperBank = 'partner/bank-details';
   static String helperEarningsTransaction(String id) =>
       'helper/earnings/transaction/$id';
 
