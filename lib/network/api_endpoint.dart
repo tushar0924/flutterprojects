@@ -3,6 +3,11 @@ class ApiEndpoint {
     'API_BASE_URL',
     defaultValue: 'https://api.zynexxindia.com/api/',
   );
+
+  static const String socketUrl = String.fromEnvironment(
+    'SOCKET_BASE_URL',
+    defaultValue: 'https://api.zynexxindia.com',
+  );
 }
 
 class AuthApiEndpoint {
@@ -45,6 +50,16 @@ class PartnerApiEndpoint {
   static const String bookingsHistory = 'partner/bookings/history';
 
   static String bookingDetail(int bookingId) => '$bookings/$bookingId';
+}
+
+class BookingApiEndpoint {
+  static const String accept = 'booking/accept';
+  static const String reject = 'booking/reject';
+}
+
+class BookingRequestApiEndpoint {
+  static String accept(int requestId) => 'booking-requests/$requestId/accept';
+  static String reject(int requestId) => 'booking-requests/$requestId/reject';
 }
 
 class ServicesApiEndpoint {

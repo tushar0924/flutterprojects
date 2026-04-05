@@ -1,25 +1,74 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-import 'home/booking_alert.dart';
+import '../models/booking_alert_model.dart';
+import '../providers/booking_socket_provider.dart';
+import '../utils/toast_helper.dart';
+import '../features/booking_alert/booking_alert_dialog.dart';
 import 'home/home_side_drawer.dart';
-import 'home/job_details_screen.dart';
 import 'home/tabs/earnings_tab_content.dart';
 import 'home/tabs/home_tab_content.dart';
 import 'home/tabs/jobs_tab_content.dart';
-import '../utils/toast_helper.dart';
+import 'home/job_details_screen.dart';
 
-class HelperrHome extends StatefulWidget {
+class HelperrHome extends ConsumerStatefulWidget {
   const HelperrHome({super.key});
 
   @override
-  State<HelperrHome> createState() => _HelperrHomeState();
+  ConsumerState<HelperrHome> createState() => _HelperrHomeState();
 }
 
-class _HelperrHomeState extends State<HelperrHome> {
+class _HelperrHomeState extends ConsumerState<HelperrHome> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   int _currentIndex = 0;
   DateTime? _lastBackPressAt;
+  bool _bookingAlertVisible = false;
+  BookingAlertModel? _pendingBooking;
+  ProviderSubscription<BookingSocketState>? _bookingSocketSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(bookingSocketProvider.notifier).start();
+      _bookingSocketSubscription = ref.listenManual<BookingSocketState>(
+        bookingSocketProvider,
+        _onBookingSocketStateChanged,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _bookingSocketSubscription?.close();
+    ref.read(bookingSocketProvider.notifier).stop();
+    super.dispose();
+  }
+
+  void _onBookingSocketStateChanged(
+    BookingSocketState? previous,
+    BookingSocketState next,
+  ) {
+    final nextBooking = next.activeBooking;
+    final previousId = previous?.activeBooking?.requestId;
+
+    if (nextBooking != null && nextBooking.requestId != previousId) {
+      if (_bookingAlertVisible) {
+        _pendingBooking = nextBooking;
+      } else {
+        _showBookingAlert(nextBooking);
+      }
+    }
+
+    if (previous?.activeBooking != null &&
+        nextBooking == null &&
+        _bookingAlertVisible) {
+      if (Navigator.of(context, rootNavigator: true).canPop()) {
+        Navigator.of(context, rootNavigator: true).pop('closed');
+      }
+    }
+  }
 
   Future<bool> _onWillPop() async {
     if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
@@ -42,15 +91,52 @@ class _HelperrHomeState extends State<HelperrHome> {
     return true;
   }
 
-  Future<void> _showBookingAlert() async {
-    final res = await showDialog(
+  Future<void> _showBookingAlert(BookingAlertModel booking) async {
+    if (!mounted) return;
+
+    _bookingAlertVisible = true;
+    final result = await showDialog<String>(
       context: context,
-      builder: (_) => const BookingAlert(),
+      barrierDismissible: false,
+      barrierColor: Colors.black54,
+      builder: (_) => BookingAlert(
+        booking: booking,
+        onAccept: (item) =>
+            ref.read(bookingSocketProvider.notifier).acceptBooking(item),
+        onReject: (item) =>
+            ref.read(bookingSocketProvider.notifier).rejectBooking(item),
+      ),
     );
-    if (res == 'accepted' && mounted) {
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const JobDetailsScreen()));
+
+    _bookingAlertVisible = false;
+    ref
+        .read(bookingSocketProvider.notifier)
+        .clearActiveBooking(booking.requestId);
+
+    if (!mounted) return;
+
+    if (result == 'accepted') {
+      AppToast.showSuccess('Booking accepted');
+      // Navigate to job details screen with the booking ID from accept response
+      final bookingId = ref.read(bookingSocketProvider).lastAcceptedBookingId;
+      if (bookingId != null && bookingId > 0) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => JobDetailsScreen(bookingId: bookingId),
+          ),
+        );
+      }
+    } else if (result == 'rejected') {
+      AppToast.showNeutral('Booking rejected');
+    }
+
+    final pendingBooking = _pendingBooking;
+    _pendingBooking = null;
+    final currentBooking = ref.read(bookingSocketProvider).activeBooking;
+    if (pendingBooking != null &&
+        currentBooking?.requestId == pendingBooking.requestId &&
+        pendingBooking.requestId != booking.requestId) {
+      await _showBookingAlert(pendingBooking);
     }
   }
 
@@ -67,7 +153,16 @@ class _HelperrHomeState extends State<HelperrHome> {
           children: [
             HomeTabContent(
               onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
-              onNotificationTap: _showBookingAlert,
+              onNotificationTap: () {
+                final activeBooking = ref
+                    .read(bookingSocketProvider)
+                    .activeBooking;
+                if (activeBooking != null) {
+                  _showBookingAlert(activeBooking);
+                } else {
+                  AppToast.showInfo('No active booking right now');
+                }
+              },
               onViewAllJobs: () => setState(() => _currentIndex = 1),
             ),
             const JobsTabContent(),

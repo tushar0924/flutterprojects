@@ -171,7 +171,9 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
       if (normalized == 'online' || normalized == 'true' || normalized == '1') {
         return true;
       }
-      if (normalized == 'offline' || normalized == 'false' || normalized == '0') {
+      if (normalized == 'offline' ||
+          normalized == 'false' ||
+          normalized == '0') {
         return false;
       }
     }
@@ -258,13 +260,13 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Text(
-                                  'Upcoming Jobs',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF1D2939),
-                                  ),
+                                'Upcoming Jobs',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF1D2939),
                                 ),
+                              ),
                               if (hasUpcomingJobs)
                                 GestureDetector(
                                   onTap: widget.onViewAllJobs,
@@ -499,9 +501,10 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
               Expanded(
                 child: OutlinedButton(
                   onPressed: () {
+                    final bookingId = activeBooking['id'] as int? ?? 0;
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => const JobDetailsScreen(),
+                        builder: (_) => JobDetailsScreen(bookingId: bookingId),
                       ),
                     );
                   },
@@ -730,11 +733,8 @@ class _StatCard extends StatelessWidget {
                           Colors.white,
                           BlendMode.srcIn,
                         ),
-                        placeholderBuilder: (context) => Icon(
-                          icon,
-                          color: Colors.white,
-                          size: 24,
-                        ),
+                        placeholderBuilder: (context) =>
+                            Icon(icon, color: Colors.white, size: 24),
                       ),
               ),
               const SizedBox(height: 10),
@@ -923,7 +923,9 @@ class _UpcomingJobCard extends StatelessWidget {
     final raw = job.displayAmount.trim();
     if (raw.isEmpty || raw == '—') return '—';
     final lower = raw.toLowerCase();
-    if (lower.contains('hour') || lower.contains('/hr') || lower.contains('/hour')) {
+    if (lower.contains('hour') ||
+        lower.contains('/hr') ||
+        lower.contains('/hour')) {
       return raw;
     }
     return '$raw per hour';

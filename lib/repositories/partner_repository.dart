@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 
+import '../models/booking_alert_model.dart';
 import '../models/helper_bank_model.dart';
 import '../models/helper_earnings_history_model.dart';
 import '../models/helper_earnings_transaction_model.dart';
@@ -227,7 +228,10 @@ class PartnerRepository {
           filename: _fileNameFromPath(backFile.path),
         ),
       });
-      final res = await _client.post(PartnerApiEndpoint.uploadAadhar, data: formData);
+      final res = await _client.post(
+        PartnerApiEndpoint.uploadAadhar,
+        data: formData,
+      );
       return (res.data as Map<String, dynamic>?) ?? {};
     } on DioException catch (e) {
       return <String, dynamic>{
@@ -345,7 +349,9 @@ class PartnerRepository {
   }
 
   /// PUT /api/partner/bank-details
-  Future<Map<String, dynamic>> updateHelperBank(HelperBankAccount account) async {
+  Future<Map<String, dynamic>> updateHelperBank(
+    HelperBankAccount account,
+  ) async {
     try {
       final res = await _client.put(
         PartnerApiEndpoint.helperBank,
@@ -375,7 +381,9 @@ class PartnerRepository {
     String id,
   ) async {
     try {
-      final res = await _client.get(PartnerApiEndpoint.helperEarningsTransaction(id));
+      final res = await _client.get(
+        PartnerApiEndpoint.helperEarningsTransaction(id),
+      );
       final data = (res.data as Map<String, dynamic>?) ?? {};
       return HelperEarningsTransactionResponse.fromJson(data);
     } on DioException catch (e) {
@@ -715,5 +723,45 @@ class PartnerRepository {
   Future<Map<String, dynamic>> getBookingDetail(int bookingId) async {
     final res = await _client.get(PartnerApiEndpoint.bookingDetail(bookingId));
     return (res.data as Map<String, dynamic>?) ?? {};
+  }
+
+  /// POST /api/booking/accept
+  Future<Map<String, dynamic>> acceptBooking(int requestId) async {
+    try {
+      final res = await _client.post(
+        BookingApiEndpoint.accept,
+        data: {'requestId': requestId},
+      );
+      return (res.data as Map<String, dynamic>?) ?? {};
+    } on DioException catch (e) {
+      return <String, dynamic>{
+        'success': false,
+        'message': _extractErrorMessage(
+          e,
+          fallback: 'Failed to accept booking',
+        ),
+        'statusCode': e.response?.statusCode,
+      };
+    }
+  }
+
+  /// POST /api/booking/reject
+  Future<Map<String, dynamic>> rejectBooking(int requestId) async {
+    try {
+      final res = await _client.post(
+        BookingApiEndpoint.reject,
+        data: {'requestId': requestId},
+      );
+      return (res.data as Map<String, dynamic>?) ?? {};
+    } on DioException catch (e) {
+      return <String, dynamic>{
+        'success': false,
+        'message': _extractErrorMessage(
+          e,
+          fallback: 'Failed to reject booking',
+        ),
+        'statusCode': e.response?.statusCode,
+      };
+    }
   }
 }
