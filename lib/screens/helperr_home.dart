@@ -11,6 +11,7 @@ import 'home/tabs/earnings_tab_content.dart';
 import 'home/tabs/home_tab_content.dart';
 import 'home/tabs/jobs_tab_content.dart';
 import 'home/job_details_screen.dart';
+import 'home/notifications_screen.dart';
 
 class HelperrHome extends ConsumerStatefulWidget {
   const HelperrHome({super.key});
@@ -24,6 +25,8 @@ class _HelperrHomeState extends ConsumerState<HelperrHome> {
   int _currentIndex = 0;
   DateTime? _lastBackPressAt;
   bool _bookingAlertVisible = false;
+  bool _bookingAlertClosing = false;
+  BuildContext? _bookingAlertDialogContext;
   BookingAlertModel? _pendingBooking;
   ProviderSubscription<BookingSocketState>? _bookingSocketSubscription;
 
@@ -42,7 +45,11 @@ class _HelperrHomeState extends ConsumerState<HelperrHome> {
   @override
   void dispose() {
     _bookingSocketSubscription?.close();
-    ref.read(bookingSocketProvider.notifier).stop();
+    try {
+      ref.read(bookingSocketProvider.notifier).stop();
+    } catch (_) {
+      // Ignore error if ref is no longer available after dispose
+    }
     super.dispose();
   }
 
@@ -64,10 +71,22 @@ class _HelperrHomeState extends ConsumerState<HelperrHome> {
     if (previous?.activeBooking != null &&
         nextBooking == null &&
         _bookingAlertVisible) {
-      if (Navigator.of(context, rootNavigator: true).canPop()) {
-        Navigator.of(context, rootNavigator: true).pop('closed');
-      }
+      _closeBookingAlertFromSocket();
     }
+  }
+
+  void _closeBookingAlertFromSocket() {
+    if (_bookingAlertClosing || !_bookingAlertVisible) return;
+    final dialogContext = _bookingAlertDialogContext;
+    if (dialogContext == null) return;
+
+    final route = ModalRoute.of(dialogContext);
+    if (route is! PopupRoute || !route.isCurrent || route.navigator == null) {
+      return;
+    }
+
+    _bookingAlertClosing = true;
+    route.navigator!.pop('closed');
   }
 
   Future<bool> _onWillPop() async {
@@ -95,28 +114,38 @@ class _HelperrHomeState extends ConsumerState<HelperrHome> {
     if (!mounted) return;
 
     _bookingAlertVisible = true;
+    _bookingAlertClosing = false;
     final result = await showDialog<String>(
       context: context,
       barrierDismissible: false,
       barrierColor: Colors.black54,
-      builder: (_) => BookingAlert(
-        booking: booking,
-        onAccept: (item) =>
-            ref.read(bookingSocketProvider.notifier).acceptBooking(item),
-        onReject: (item) =>
-            ref.read(bookingSocketProvider.notifier).rejectBooking(item),
-      ),
+      builder: (dialogContext) {
+        _bookingAlertDialogContext = dialogContext;
+        return BookingAlert(
+          booking: booking,
+          onAccept: (item) =>
+              ref.read(bookingSocketProvider.notifier).acceptBooking(item),
+          onReject: (item) =>
+              ref.read(bookingSocketProvider.notifier).rejectBooking(item),
+        );
+      },
     );
 
     _bookingAlertVisible = false;
-    ref
-        .read(bookingSocketProvider.notifier)
-        .clearActiveBooking(booking.requestId);
+    _bookingAlertClosing = false;
+    _bookingAlertDialogContext = null;
 
     if (!mounted) return;
 
+    ref
+      .read(bookingSocketProvider.notifier)
+      .clearActiveBooking(booking.requestId);
+
     if (result == 'accepted') {
       AppToast.showSuccess('Booking accepted');
+      await Future.delayed(const Duration(milliseconds: 150));
+      if (!mounted) return;
+
       // Navigate to job details screen with the booking ID from accept response
       final bookingId = ref.read(bookingSocketProvider).lastAcceptedBookingId;
       if (bookingId != null && bookingId > 0) {
@@ -128,6 +157,7 @@ class _HelperrHomeState extends ConsumerState<HelperrHome> {
       }
     } else if (result == 'rejected') {
       AppToast.showNeutral('Booking rejected');
+      await Future.delayed(const Duration(milliseconds: 120));
     }
 
     final pendingBooking = _pendingBooking;
@@ -154,14 +184,11 @@ class _HelperrHomeState extends ConsumerState<HelperrHome> {
             HomeTabContent(
               onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
               onNotificationTap: () {
-                final activeBooking = ref
-                    .read(bookingSocketProvider)
-                    .activeBooking;
-                if (activeBooking != null) {
-                  _showBookingAlert(activeBooking);
-                } else {
-                  AppToast.showInfo('No active booking right now');
-                }
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const NotificationsScreen(),
+                  ),
+                );
               },
               onViewAllJobs: () => setState(() => _currentIndex = 1),
             ),

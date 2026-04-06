@@ -263,6 +263,8 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
   @override
   Widget build(BuildContext context) {
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+    final systemBottomInset = MediaQuery.viewPaddingOf(context).bottom;
+    final bottomInset = keyboardInset > 0 ? keyboardInset : systemBottomInset;
 
     return Scaffold(
       backgroundColor: const Color(0xFFE3E5E8),
@@ -285,7 +287,7 @@ class _EditAddressScreenState extends ConsumerState<EditAddressScreen> {
       ),
       bottomNavigationBar: Container(
         color: Colors.white,
-        padding: EdgeInsets.fromLTRB(16, 12, 16, 18 + keyboardInset),
+        padding: EdgeInsets.fromLTRB(16, 12, 16, 18 + bottomInset),
         child: SizedBox(
           width: double.infinity,
           height: 48,

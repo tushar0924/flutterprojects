@@ -14,7 +14,7 @@ class ManageServicesScreen extends ConsumerStatefulWidget {
 }
 
 class _ManageServicesScreenState extends ConsumerState<ManageServicesScreen> {
-  static const List<String> _fallbackServices = [
+  static const List<String> _fallbackCategories = [
     'Maid',
     'Cook',
     'Shop-helper',
@@ -57,16 +57,16 @@ class _ManageServicesScreenState extends ConsumerState<ManageServicesScreen> {
     if (!mounted) return;
 
     final services = servicesResponse.services
-        .map((s) => _ServiceOption(id: s.serviceId, name: s.name))
+      .map((s) => _ServiceOption(id: s.categoryId, name: s.name))
         .toList();
 
     final selectedIdsFromApi = servicesResponse.services
         .where((s) => s.isSelected)
-        .map((s) => s.serviceId)
+      .map((s) => s.categoryId)
         .toSet();
 
     final resolvedServices = services.isEmpty
-        ? _fallbackServices
+      ? _fallbackCategories
               .asMap()
               .entries
               .map((e) => _ServiceOption(id: e.key + 1, name: e.value))
@@ -122,10 +122,10 @@ class _ManageServicesScreenState extends ConsumerState<ManageServicesScreen> {
         _initialSelectedServiceIds = Set<int>.from(_selectedServiceIds);
         _hasChanges = false;
       });
-      AppToast.showSuccess('Services saved successfully');
+      AppToast.showSuccess('Categories saved successfully');
     } else {
       AppToast.showError(
-        (res['message'] ?? 'Failed to save services').toString(),
+        (res['message'] ?? 'Failed to save categories').toString(),
       );
     }
 
@@ -140,6 +140,8 @@ class _ManageServicesScreenState extends ConsumerState<ManageServicesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final systemBottomInset = MediaQuery.viewPaddingOf(context).bottom;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F6),
       appBar: AppBar(
@@ -156,7 +158,7 @@ class _ManageServicesScreenState extends ConsumerState<ManageServicesScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              'Manage Services',
+              'Manage Categories',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 24,
@@ -166,7 +168,7 @@ class _ManageServicesScreenState extends ConsumerState<ManageServicesScreen> {
             ),
             SizedBox(height: 2),
             Text(
-              'Add or remove services you offer',
+              'Add or remove categories you offer',
               style: TextStyle(
                 color: Color(0xFFD0D5DD),
                 fontSize: 13,
@@ -210,7 +212,7 @@ class _ManageServicesScreenState extends ConsumerState<ManageServicesScreen> {
                             ),
                             decoration: const InputDecoration(
                               border: InputBorder.none,
-                              hintText: 'Search service...',
+                              hintText: 'Search category...',
                               hintStyle: TextStyle(
                                 color: Color(0xFF98A2B3),
                                 fontSize: 16,
@@ -229,7 +231,7 @@ class _ManageServicesScreenState extends ConsumerState<ManageServicesScreen> {
                   ),
                   const SizedBox(height: 14),
                   const Text(
-                    'Choose Service You Provide',
+                    'Choose Category You Provide',
                     style: TextStyle(
                       color: Color(0xFF1D2939),
                       fontSize: 21,
@@ -263,7 +265,10 @@ class _ManageServicesScreenState extends ConsumerState<ManageServicesScreen> {
                   // Show save button if there are unsaved changes
                   if (_hasChanges)
                     Padding(
-                      padding: const EdgeInsets.only(top: 16),
+                      padding: EdgeInsets.only(
+                        top: 16,
+                        bottom: systemBottomInset + 8,
+                      ),
                       child: SizedBox(
                         width: double.infinity,
                         height: 48,
@@ -277,7 +282,7 @@ class _ManageServicesScreenState extends ConsumerState<ManageServicesScreen> {
                             ),
                           ),
                           child: Text(
-                            _saving ? 'Saving...' : 'Save Services',
+                            _saving ? 'Saving...' : 'Save Categories',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 16,

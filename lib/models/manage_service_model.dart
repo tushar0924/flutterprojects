@@ -1,19 +1,28 @@
 class ManageService {
   const ManageService({
-    required this.serviceId,
+    required this.categoryId,
     required this.name,
     required this.isSelected,
   });
 
-  final int serviceId;
+  final int categoryId;
   final String name;
   final bool isSelected;
 
+  // Backward compatibility for older call-sites still using `serviceId`.
+  int get serviceId => categoryId;
+
   factory ManageService.fromJson(Map<String, dynamic> json) {
     return ManageService(
-      serviceId: _toInt(json['serviceId']),
-      name: _toString(json['name']),
-      isSelected: _toBool(json['isSelected']),
+      categoryId: _toInt(
+        json['categoryId'] ?? json['serviceId'] ?? json['id'],
+      ),
+      name: _toString(
+        json['name'] ?? json['categoryName'] ?? json['title'],
+      ),
+      isSelected: _toBool(
+        json['isSelected'] ?? json['selected'] ?? json['isActive'],
+      ),
     );
   }
 
@@ -44,27 +53,58 @@ class ManageService {
 class ManageServicesApiResponse {
   const ManageServicesApiResponse({
     required this.success,
-    required this.services,
+    required this.categories,
   });
 
   final bool success;
-  final List<ManageService> services;
+  final List<ManageService> categories;
+
+  // Backward compatibility for older call-sites still using `services`.
+  List<ManageService> get services => categories;
 
   factory ManageServicesApiResponse.fromJson(Map<String, dynamic> json) {
-    final data = json['data'] ?? [];
+    final data = json['data'];
     final serviceList = <ManageService>[];
 
-    if (data is List) {
-      for (final item in data) {
-        if (item is Map<String, dynamic>) {
-          serviceList.add(ManageService.fromJson(item));
+    void readList(dynamic source) {
+      if (source is! List) return;
+      for (final item in source) {
+        if (item is! Map) continue;
+        final map = Map<String, dynamic>.from(item);
+        final nestedServices = map['services'];
+        if (nestedServices is List && nestedServices.isNotEmpty) {
+          for (final nestedItem in nestedServices) {
+            if (nestedItem is Map) {
+              final nestedMap = Map<String, dynamic>.from(nestedItem);
+              serviceList.add(ManageService.fromJson(nestedMap));
+            }
+          }
+          continue;
         }
+        serviceList.add(ManageService.fromJson(map));
       }
+    }
+
+    if (data is List) {
+      readList(data);
+    } else if (data is Map) {
+      final normalizedData = Map<String, dynamic>.from(data);
+      readList(normalizedData['categories']);
+      if (serviceList.isEmpty) {
+        readList(normalizedData['services']);
+      }
+    }
+
+    if (serviceList.isEmpty) {
+      readList(json['categories']);
+    }
+    if (serviceList.isEmpty) {
+      readList(json['services']);
     }
 
     return ManageServicesApiResponse(
       success: json['success'] == true,
-      services: serviceList,
+      categories: serviceList,
     );
   }
 }

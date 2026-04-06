@@ -73,6 +73,17 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
     return 'Move the map or search for an area';
   }
 
+  bool get _canConfirmLocation {
+    final address = (_selectedAddress ?? '').trim();
+    final hasResolvedAddress =
+        address.isNotEmpty && address != 'Updating location...';
+
+    return _selectedLocation != null &&
+        !_isLocationLoading &&
+        !_isResolvingAddress &&
+        hasResolvedAddress;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -309,6 +320,13 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
   Future<void> _reverseGeocode(LatLng location) async {
     final apiKey = await _requireGoogleMapsApiKey();
     if (apiKey.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _isResolvingAddress = false;
+        _selectedAddress = _selectedAddress?.isNotEmpty == true
+            ? _selectedAddress
+            : 'Selected location';
+      });
       return;
     }
 
@@ -442,10 +460,22 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
   }
 
   void _confirmLocation() {
+    if (_isResolvingAddress) {
+      AppToast.showError('Please wait while we resolve the address');
+      return;
+    }
+
     if (_selectedLocation == null) {
       AppToast.showError('Please select a location');
       return;
     }
+
+    final address = (_selectedAddress ?? '').trim();
+    if (address.isEmpty || address == 'Updating location...') {
+      AppToast.showError('Please wait until address resolution completes');
+      return;
+    }
+
     Navigator.of(context).pop({
       'latitude': _selectedLocation!.latitude,
       'longitude': _selectedLocation!.longitude,
@@ -642,10 +672,14 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
   }
 
   Widget _buildBottomSheet() {
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+    final systemBottomInset = MediaQuery.viewPaddingOf(context).bottom;
+    final bottomInset = keyboardInset > 0 ? keyboardInset : systemBottomInset;
+
     return Positioned(
       left: 14,
       right: 14,
-      bottom: 14,
+      bottom: 14 + bottomInset,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -759,7 +793,7 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
                   width: double.infinity,
                   height: 46,
                   child: ElevatedButton(
-                    onPressed: _isLocationLoading ? null : _confirmLocation,
+                    onPressed: _canConfirmLocation ? _confirmLocation : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF0B2239),
                       shape: RoundedRectangleBorder(

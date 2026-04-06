@@ -1,3 +1,4 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
@@ -50,10 +51,12 @@ class BookingSocketNotifier extends StateNotifier<BookingSocketState> {
 
   final Ref _ref;
   final SessionManager _session = SessionManager();
+  final AudioPlayer _audioPlayer = AudioPlayer();
   IO.Socket? _socket;
   bool _started = false;
   int? _lastNewBookingRequestId;
   DateTime? _lastNewBookingAt;
+  int? _inFlightActionRequestId;
 
   Future<void> start() async {
     if (_started) return;
@@ -68,6 +71,7 @@ class BookingSocketNotifier extends StateNotifier<BookingSocketState> {
 
   @override
   void dispose() {
+    _audioPlayer.dispose();
     _disconnect();
     super.dispose();
   }
@@ -155,6 +159,35 @@ class BookingSocketNotifier extends StateNotifier<BookingSocketState> {
     socket.dispose();
   }
 
+  Future<void> _playAlertSound() async {
+    const candidates = <String>[
+      'alert_sounds/alert_sound.mp3',
+      'alert_sounds/alert_sound.wav',
+      'alert_sounds/alert_sound.m4a',
+      'alert_sounds/alert_sound.ogg',
+    ];
+
+    try {
+      await _audioPlayer.setPlayerMode(PlayerMode.lowLatency);
+      await _audioPlayer.setReleaseMode(ReleaseMode.stop);
+      await _audioPlayer.setVolume(1.0);
+
+      for (final assetPath in candidates) {
+        try {
+          await _audioPlayer.stop();
+          await _audioPlayer.play(AssetSource(assetPath));
+          return;
+        } catch (_) {
+          // Try next candidate
+        }
+      }
+    } catch (_) {
+      // Fall through to system alert sound
+    }
+
+    SystemSound.play(SystemSoundType.alert);
+  }
+
   void _handleNewBooking(dynamic data) {
     final booking = BookingAlertModel.fromSocketPayload(data);
     if (booking.requestId == 0) {
@@ -175,13 +208,24 @@ class BookingSocketNotifier extends StateNotifier<BookingSocketState> {
     _lastNewBookingAt = now;
 
     state = state.copyWith(activeBooking: booking, clearMessage: true);
-    SystemSound.play(SystemSoundType.alert);
+    
+    // Play sound asynchronously without blocking
+    _playAlertSound().ignore();
     HapticFeedback.heavyImpact();
   }
 
   void _handleBookingClosedEvent(dynamic data, String message) {
     final eventRequestId = _extractRequestId(data);
     final activeRequestId = state.activeBooking?.requestId;
+
+    // Ignore stale close events once the popup is already gone.
+    if (activeRequestId == null) return;
+
+    // While user action is in flight (accept/reject), that action controls dialog closure.
+    if (_inFlightActionRequestId != null &&
+        _inFlightActionRequestId == activeRequestId) {
+      return;
+    }
 
     if (activeRequestId != null &&
         eventRequestId != null &&
@@ -216,43 +260,87 @@ class BookingSocketNotifier extends StateNotifier<BookingSocketState> {
 
   Future<bool> acceptBooking(BookingAlertModel booking) async {
     final repo = _ref.read(bookingRequestActionsRepositoryProvider);
-    final response = await repo.acceptByRequestId(booking.requestId);
-    final success =
-        response['success'] == true ||
-        response['statusCode'] == 200 ||
-        response['statusCode'] == 201;
-    if (!success) {
-      final message = response['message']?.toString().trim();
-      if (message != null && message.isNotEmpty) {
-        state = state.copyWith(message: message);
-        AppToast.showError(message);
+    _inFlightActionRequestId = booking.requestId;
+    try {
+      final response = await repo.acceptByRequestId(booking.requestId);
+      final success =
+          response['success'] == true ||
+          response['statusCode'] == 200 ||
+          response['statusCode'] == 201;
+      if (!success) {
+        final message = response['message']?.toString().trim();
+        if (message != null && message.isNotEmpty) {
+          state = state.copyWith(message: message);
+          AppToast.showError(message);
+        }
+      } else {
+        // Extract bookingId from the response
+        final data = response['data'] as Map<String, dynamic>?;
+        final bookingId = _extractBookingId(response, data);
+        if (bookingId != null) {
+          state = state.copyWith(lastAcceptedBookingId: bookingId);
+        }
       }
-    } else {
-      // Extract bookingId from the response
-      final data = response['data'] as Map<String, dynamic>?;
-      final bookingId = data?['bookingId'] as int?;
-      if (bookingId != null) {
-        state = state.copyWith(lastAcceptedBookingId: bookingId);
+      return success;
+    } catch (_) {
+      AppToast.showError('Failed to accept booking request');
+      return false;
+    } finally {
+      if (_inFlightActionRequestId == booking.requestId) {
+        _inFlightActionRequestId = null;
       }
     }
-    return success;
+  }
+
+  int? _extractBookingId(
+    Map<String, dynamic> response,
+    Map<String, dynamic>? data,
+  ) {
+    final candidates = <dynamic>[
+      data?['bookingId'],
+      data?['id'],
+      data?['booking_id'],
+      response['bookingId'],
+      response['id'],
+      response['booking_id'],
+      data?['booking'] is Map ? (data!['booking'] as Map)['id'] : null,
+      data?['booking'] is Map ? (data!['booking'] as Map)['bookingId'] : null,
+    ];
+
+    for (final candidate in candidates) {
+      if (candidate is int) return candidate;
+      if (candidate is num) return candidate.toInt();
+      final parsed = int.tryParse(candidate?.toString() ?? '');
+      if (parsed != null) return parsed;
+    }
+    return null;
   }
 
   Future<bool> rejectBooking(BookingAlertModel booking) async {
     final repo = _ref.read(bookingRequestActionsRepositoryProvider);
-    final response = await repo.rejectByRequestId(booking.requestId);
-    final success =
-        response['success'] == true ||
-        response['statusCode'] == 200 ||
-        response['statusCode'] == 201;
-    if (!success) {
-      final message = response['message']?.toString().trim();
-      if (message != null && message.isNotEmpty) {
-        state = state.copyWith(message: message);
-        AppToast.showError(message);
+    _inFlightActionRequestId = booking.requestId;
+    try {
+      final response = await repo.rejectByRequestId(booking.requestId);
+      final success =
+          response['success'] == true ||
+          response['statusCode'] == 200 ||
+          response['statusCode'] == 201;
+      if (!success) {
+        final message = response['message']?.toString().trim();
+        if (message != null && message.isNotEmpty) {
+          state = state.copyWith(message: message);
+          AppToast.showError(message);
+        }
+      }
+      return success;
+    } catch (_) {
+      AppToast.showError('Failed to reject booking request');
+      return false;
+    } finally {
+      if (_inFlightActionRequestId == booking.requestId) {
+        _inFlightActionRequestId = null;
       }
     }
-    return success;
   }
 
   void clearActiveBooking(int requestId) {

@@ -218,7 +218,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
   }
 
   Set<int> _readServiceIds(Map<String, dynamic> profile) {
-    final fromIds = profile['serviceIds'];
+    final fromIds = profile['categoryIds'] ?? profile['serviceIds'];
     if (fromIds is List) {
       return fromIds
           .map((e) {
@@ -231,7 +231,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
           .toSet();
     }
 
-    final fromServices = profile['services'];
+    final fromServices = profile['categories'] ?? profile['services'];
     if (fromServices is List) {
       return fromServices
           .map((e) {
@@ -239,7 +239,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
             if (e is num) return e.toInt();
             if (e is String) return int.tryParse(e.trim());
             if (e is Map) {
-              final id = e['id'];
+              final id = e['categoryId'] ?? e['serviceId'] ?? e['id'];
               if (id is int) return id;
               if (id is num) return id.toInt();
               if (id is String) return int.tryParse(id.trim());
@@ -410,7 +410,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
       return;
     }
     if (_selectedServiceIds.isEmpty) {
-      _showMessage('Please select at least one service');
+      _showMessage('Please select at least one category');
       return;
     }
     if (_capturedLatitude == null || _capturedLongitude == null) {
@@ -434,6 +434,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
       'latitude': _capturedLatitude,
       'longitude': _capturedLongitude,
       'hasExperience': _experience == 'Yes',
+      'categoryIds': _selectedServiceIds.toList(),
       'serviceIds': _selectedServiceIds.toList(),
     };
     debugPrint('[Onboarding Step2] Submit payload: $requestPayload');
@@ -934,7 +935,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
                                               )
                                             : _addressPreviewCard(),
                                         const SizedBox(height: 20),
-                                        _label('Choose Service You Provide'),
+                                        _label('Choose Category You Provide'),
                                         const SizedBox(height: 10),
                                         ...List.generate(
                                             (services.length / 2).ceil(), (rowIdx) {

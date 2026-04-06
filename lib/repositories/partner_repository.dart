@@ -127,6 +127,7 @@ class PartnerRepository {
       'address': serviceArea,
       'hasExperience': hasExperience,
       'serviceIds': serviceIds,
+      'categoryIds': serviceIds,
     };
     if (gender.isNotEmpty) payload['gender'] = gender;
     if (city.isNotEmpty) payload['city'] = city;
@@ -529,22 +530,22 @@ class PartnerRepository {
     }
   }
 
-  /// GET /api/partner/services
-  /// GET /api/partner/services — Fetch typed manage services list
+  /// GET /api/partner/categories
+  /// GET /api/partner/categories — Fetch typed manage categories list
   Future<ManageServicesApiResponse> getManageServices() async {
     try {
-      final res = await _client.get(PartnerApiEndpoint.services);
+      final res = await _client.get(PartnerApiEndpoint.categories);
       final responseData = (res.data as Map<String, dynamic>?) ?? {};
       return ManageServicesApiResponse.fromJson(responseData);
     } on DioException catch (e) {
-      return ManageServicesApiResponse(success: false, services: const []);
+      return ManageServicesApiResponse(success: false, categories: const []);
     }
   }
 
-  /// GET /api/partner/services — Return raw response for backward compatibility
+  /// GET /api/partner/categories — Return raw response for onboarding/service selection
   Future<Map<String, dynamic>> getPartnerServices() async {
     try {
-      final res = await _client.get(PartnerApiEndpoint.services);
+      final res = await _client.get(PartnerApiEndpoint.categories);
       return (res.data as Map<String, dynamic>?) ?? {};
     } on DioException catch (e) {
       final data = e.response?.data;
@@ -555,18 +556,21 @@ class PartnerRepository {
         'success': false,
         'message': _extractErrorMessage(
           e,
-          fallback: 'Failed to load partner services',
+          fallback: 'Failed to load partner categories',
         ),
         'statusCode': e.response?.statusCode,
       };
     }
   }
 
-  /// PUT /api/partner/services
+  /// PUT /api/partner/categories
   Future<Map<String, dynamic>> updatePartnerServices({
     required List<int> serviceIds,
   }) async {
     final payload = <String, dynamic>{
+      'categoryIds': serviceIds,
+      // Keep compatibility with APIs using `categories` key.
+      'categories': serviceIds,
       'serviceIds': serviceIds,
       // Keep compatibility with APIs using `services` key.
       'services': serviceIds,
@@ -574,10 +578,10 @@ class PartnerRepository {
 
     try {
       final res = await _client.put(
-        PartnerApiEndpoint.services,
+        PartnerApiEndpoint.categories,
         data: payload,
         options: Options(
-          extra: {'successToastMessage': 'Services updated successfully'},
+          extra: {'successToastMessage': 'Categories updated successfully'},
         ),
       );
       return (res.data as Map<String, dynamic>?) ?? {};
@@ -590,7 +594,7 @@ class PartnerRepository {
         'success': false,
         'message': _extractErrorMessage(
           e,
-          fallback: 'Failed to update partner services',
+          fallback: 'Failed to update partner categories',
         ),
         'statusCode': e.response?.statusCode,
       };

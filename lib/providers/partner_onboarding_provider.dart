@@ -560,6 +560,10 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
 
   Future<Map<String, dynamic>> _safeGetServices() async {
     try {
+      final categoriesResponse = await _partnerRepository.getPartnerServices();
+      if (categoriesResponse.isNotEmpty) {
+        return categoriesResponse;
+      }
       return await _servicesRepository.getServices();
     } catch (e) {
       return <String, dynamic>{'success': false, 'message': e.toString()};
@@ -798,19 +802,62 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
   }
 
   List<ServiceModel> _extractServices(Map<String, dynamic> payload) {
-    final raw = payload['data'] ?? payload['services'];
-    if (raw is! List) return const <ServiceModel>[];
-
     final list = <ServiceModel>[];
-    for (final service in raw) {
-      if (service is Map<String, dynamic>) {
-        final id = service['id'];
-        final name = service['name'];
-        if (id is int && name is String && name.trim().isNotEmpty) {
-          list.add(ServiceModel(id: id, name: name.trim()));
+
+    void readList(dynamic rawList) {
+      if (rawList is! List) return;
+      for (final item in rawList) {
+        if (item is! Map) continue;
+        final map = Map<String, dynamic>.from(item);
+
+        final nestedServices = map['services'];
+        if (nestedServices is List && nestedServices.isNotEmpty) {
+          readList(nestedServices);
+          continue;
+        }
+
+        final rawId = map['categoryId'] ?? map['serviceId'] ?? map['id'];
+        final rawName = map['categoryName'] ?? map['name'] ?? map['title'];
+
+        int? id;
+        if (rawId is int) {
+          id = rawId;
+        } else if (rawId is num) {
+          id = rawId.toInt();
+        } else if (rawId is String) {
+          id = int.tryParse(rawId.trim());
+        }
+
+        final name = (rawName is String ? rawName : rawName?.toString() ?? '')
+            .trim();
+
+        if (id != null && id > 0 && name.isNotEmpty) {
+          final exists = list.any((entry) => entry.id == id);
+          if (!exists) {
+            list.add(ServiceModel(id: id, name: name));
+          }
         }
       }
     }
+
+    final rawData = payload['data'];
+    if (rawData is List) {
+      readList(rawData);
+    } else if (rawData is Map) {
+      final normalizedData = Map<String, dynamic>.from(rawData);
+      readList(normalizedData['categories']);
+      if (list.isEmpty) {
+        readList(normalizedData['services']);
+      }
+    }
+
+    if (list.isEmpty) {
+      readList(payload['categories']);
+    }
+    if (list.isEmpty) {
+      readList(payload['services']);
+    }
+
     return list;
   }
 

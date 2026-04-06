@@ -44,7 +44,7 @@ class PartnerAddressModel {
   Map<String, dynamic> toPutPayload() {
     final payload = <String, dynamic>{
       'address': address,
-      'city': city,
+      'city': 'jaipur',
       'pinCode': pinCode,
     };
     if (latitude != null) payload['latitude'] = latitude;

@@ -1,13 +1,43 @@
 import 'package:flutter/material.dart';
 import 'selfie_verification_screen.dart';
+import '../../models/booking_details_model.dart';
 
 class PaymentReceivedJobDetailsScreen extends StatelessWidget {
-  const PaymentReceivedJobDetailsScreen({super.key});
+  const PaymentReceivedJobDetailsScreen({super.key, required this.booking});
+
+  final BookingDetailsModel booking;
 
   @override
   Widget build(BuildContext context) {
     const Color navyBlue = Color(0xFF0D1F33); // Darker navy from image
     const Color textGrey = Color(0xFF5B6874);
+    final customerName = booking.customer?.fullName.isNotEmpty == true
+        ? booking.customer!.fullName
+        : 'Customer';
+    final bookingIdText = booking.id > 0
+        ? booking.id.toString()
+        : (booking.bookingRequestId.isNotEmpty
+            ? booking.bookingRequestId
+            : 'N/A');
+    final serviceName = booking.service?.name.isNotEmpty == true
+        ? booking.service!.name
+        : (booking.serviceDisplayName.isNotEmpty
+            ? booking.serviceDisplayName
+            : 'N/A');
+    final paymentAmount = (booking.payment?.amount ?? 0) > 0
+        ? booking.payment!.amount
+        : booking.finalAmount > 0
+            ? booking.finalAmount
+            : booking.totalAmount;
+    final totalHoursText = booking.totalHours > 0
+        ? '${booking.totalHours} hours'
+        : '${booking.duration} hours';
+    final dateText = booking.formattedDate.isNotEmpty
+        ? booking.formattedDate
+        : booking.bookingDate.toLocal().toString().split(' ').first;
+    final timeText = booking.formattedTime.isNotEmpty
+        ? booking.formattedTime
+        : '${booking.startTime.toLocal().toString().substring(11, 16)} - ${booking.endTime.toLocal().toString().substring(11, 16)}';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
@@ -19,12 +49,22 @@ class PaymentReceivedJobDetailsScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         titleSpacing: 0,
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Job Details',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
-            Text('1765269121756', style: TextStyle(fontSize: 11, color: Colors.white70)),
+            const Text(
+              'Job Details',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              bookingIdText,
+              style: const TextStyle(fontSize: 11, color: Colors.white70),
+            ),
           ],
         ),
       ),
@@ -49,22 +89,24 @@ class PaymentReceivedJobDetailsScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.white12),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    CircleAvatar(
+                    const CircleAvatar(
                       radius: 20,
                       backgroundColor: Color(0xFF00C853), // Vibrant green
                       child: Icon(Icons.check, color: Colors.white, size: 24),
                     ),
-                    SizedBox(width: 12),
+                    const SizedBox(width: 12),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Payment Received',
+                        const Text('Payment Received',
                             style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15)),
-                        SizedBox(height: 2),
-                        Text('Received just now',
-                            style: TextStyle(color: Colors.white70, fontSize: 12)),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Received just now',
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 12),
+                        ),
                       ],
                     ),
                   ],
@@ -82,10 +124,10 @@ class PaymentReceivedJobDetailsScreen extends StatelessWidget {
                     icon: Icons.business_center_outlined,
                     child: Column(
                       children: [
-                        _infoRow('Booking ID', '1762415711831'),
-                        _infoRow('Service Type', 'Maid'),
-                        _infoRow('Booking Type', 'Per Day', isPill: true),
-                        _infoRow('Duration', '8 hours'),
+                        _infoRow('Booking ID', bookingIdText),
+                        _infoRow('Service Type', serviceName),
+                        _infoRow('Booking Type', booking.totalHours > 0 ? 'Per Day' : 'Standard', isPill: true),
+                        _infoRow('Duration', totalHoursText),
                       ],
                     ),
                   ),
@@ -103,25 +145,42 @@ class PaymentReceivedJobDetailsScreen extends StatelessWidget {
                           child: Icon(Icons.person, color: Colors.white, size: 28),
                         ),
                         const SizedBox(width: 12),
-                        const Expanded(
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Priya Sharma', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                              SizedBox(height: 4),
+                              Text(
+                                customerName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
                               Row(
                                 children: [
-                                  Icon(Icons.star, size: 16, color: Colors.amber),
-                                  SizedBox(width: 4),
-                                  Text('4.8', style: TextStyle(fontSize: 13, color: textGrey, fontWeight: FontWeight.w500)),
+                                  const Icon(
+                                    Icons.star,
+                                    size: 16,
+                                    color: Colors.amber,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    booking.rating > 0 ? booking.rating.toStringAsFixed(1) : '4.8',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: textGrey,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ],
                           ),
                         ),
-                        _CircleIconButton(icon: Icons.call, bgColor: Color(0xFF0D1F33)),
+                        _CircleIconButton(icon: Icons.call, bgColor: booking.customer?.phone.isNotEmpty == true ? const Color(0xFF0D1F33) : Colors.grey),
                         const SizedBox(width: 10),
-                        _CircleIconButton(icon: Icons.message, bgColor: Color(0xFFFF7A00)),
+                        _CircleIconButton(icon: Icons.message, bgColor: const Color(0xFFFF7A00)),
                       ],
                     ),
                   ),
@@ -134,9 +193,9 @@ class PaymentReceivedJobDetailsScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Lorem ipsum dolor sit amet consectetur. Porttitor faucibus nisi cursus.',
-                          style: TextStyle(fontSize: 13, color: textGrey, height: 1.4),
+                        Text(
+                          booking.fullAddress.isNotEmpty ? booking.fullAddress : booking.location,
+                          style: const TextStyle(fontSize: 13, color: textGrey, height: 1.4),
                         ),
                         const SizedBox(height: 14),
                         OutlinedButton.icon(
@@ -161,13 +220,13 @@ class PaymentReceivedJobDetailsScreen extends StatelessWidget {
                     icon: Icons.currency_rupee,
                     child: Column(
                       children: [
-                        _infoRow('Service Charge', '₹254'),
-                        _infoRow('Platform Fee', '₹10'),
+                        _infoRow('Service Charge', '₹${paymentAmount.toStringAsFixed(0)}'),
+                        _infoRow('Platform Fee', '₹${booking.platformFee.toStringAsFixed(0)}'),
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 8.0),
                           child: Divider(color: Color(0xFFF2F4F7)),
                         ),
-                        _infoRow('Total Amount', '₹330', isBold: true),
+                        _infoRow('Total Amount', '₹${booking.finalAmount > 0 ? booking.finalAmount.toStringAsFixed(0) : paymentAmount.toStringAsFixed(0)}', isBold: true),
                       ],
                     ),
                   ),
@@ -179,9 +238,9 @@ class PaymentReceivedJobDetailsScreen extends StatelessWidget {
                     icon: Icons.calendar_today_outlined,
                     child: Column(
                       children: [
-                        _infoRow('Date', 'Tomorrow, Dec 9, 2025', icon: Icons.calendar_today_outlined),
-                        _infoRow('Time', '10:00 AM - 05:00 PM', icon: Icons.access_time),
-                        _infoRow('Duration', '8 hours', icon: Icons.access_time),
+                        _infoRow('Date', dateText, icon: Icons.calendar_today_outlined),
+                        _infoRow('Time', timeText, icon: Icons.access_time),
+                        _infoRow('Duration', totalHoursText, icon: Icons.access_time),
                       ],
                     ),
                   ),
@@ -217,7 +276,13 @@ class PaymentReceivedJobDetailsScreen extends StatelessWidget {
                             backgroundColor: navyBlue,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
-                          child: const Text('Start', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                          child: const Text(
+                            'Start',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ),
                     ],

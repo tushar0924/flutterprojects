@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/booking_details_model.dart';
 import '../../repositories/booking_details_repository.dart';
+import 'payment_received_job_details_screen.dart';
 
 class JobDetailsScreen extends ConsumerStatefulWidget {
   final int bookingId;
@@ -18,11 +19,19 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
   BookingDetailsModel? _booking;
   bool _isLoading = true;
   String? _errorMessage;
+  Timer? _paymentRedirectTimer;
+  bool _redirectScheduled = false;
 
   @override
   void initState() {
     super.initState();
     _fetchBookingDetails();
+  }
+
+  @override
+  void dispose() {
+    _paymentRedirectTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _fetchBookingDetails() async {
@@ -38,12 +47,35 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
         _errorMessage = 'Failed to load booking details';
       }
     });
+
+    if (booking != null && booking.status == 'PENDING_PAYMENT') {
+      _schedulePaymentRedirect(booking);
+    }
+  }
+
+  void _schedulePaymentRedirect(BookingDetailsModel booking) {
+    if (_redirectScheduled || !mounted) return;
+    _redirectScheduled = true;
+    _paymentRedirectTimer?.cancel();
+    _paymentRedirectTimer = Timer(const Duration(seconds: 5), () {
+      if (!mounted) return;
+      if (_booking?.id != booking.id || _booking?.status != 'PENDING_PAYMENT') {
+        return;
+      }
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => PaymentReceivedJobDetailsScreen(booking: booking),
+        ),
+      );
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
     }
 
     if (_errorMessage != null || _booking == null) {
@@ -400,7 +432,7 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
                 ),
                 SizedBox(height: 4),
                 Text(
-                  'The remaining information will be shown when the customer makes the payment.',
+                  'This screen will auto-open payment confirmation in 5 seconds.',
                   style: TextStyle(fontSize: 12, color: Color(0xFF6D4C41)),
                 ),
               ],
