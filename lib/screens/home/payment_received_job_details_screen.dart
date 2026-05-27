@@ -11,33 +11,20 @@ class PaymentReceivedJobDetailsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     const Color navyBlue = Color(0xFF0D1F33); // Darker navy from image
     const Color textGrey = Color(0xFF5B6874);
-    final customerName = booking.customer?.fullName.isNotEmpty == true
-        ? booking.customer!.fullName
-        : 'Customer';
-    final bookingIdText = booking.id > 0
-        ? booking.id.toString()
-        : (booking.bookingRequestId.isNotEmpty
-            ? booking.bookingRequestId
-            : 'N/A');
-    final serviceName = booking.service?.name.isNotEmpty == true
-        ? booking.service!.name
-        : (booking.serviceDisplayName.isNotEmpty
-            ? booking.serviceDisplayName
-            : 'N/A');
-    final paymentAmount = (booking.payment?.amount ?? 0) > 0
-        ? booking.payment!.amount
-        : booking.finalAmount > 0
-            ? booking.finalAmount
-            : booking.totalAmount;
-    final totalHoursText = booking.totalHours > 0
-        ? '${booking.totalHours} hours'
-        : '${booking.duration} hours';
-    final dateText = booking.formattedDate.isNotEmpty
-        ? booking.formattedDate
-        : booking.bookingDate.toLocal().toString().split(' ').first;
-    final timeText = booking.formattedTime.isNotEmpty
-        ? booking.formattedTime
-        : '${booking.startTime.toLocal().toString().substring(11, 16)} - ${booking.endTime.toLocal().toString().substring(11, 16)}';
+    final customerName =
+      booking.customer.name.isNotEmpty ? booking.customer.name : 'Customer';
+    final bookingIdText = booking.id > 0 ? booking.id.toString() : 'N/A';
+    final serviceName = booking.category.name.isNotEmpty
+      ? booking.category.name
+      : 'N/A';
+    final paymentAmount = booking.paymentBreakdown.total > 0
+      ? booking.paymentBreakdown.total
+      : booking.payment.amount;
+    final totalDurationText = booking.durationLabel.isNotEmpty
+      ? booking.durationLabel
+      : 'N/A';
+    final dateText = booking.date.isNotEmpty ? booking.date : 'N/A';
+    final timeText = booking.time.isNotEmpty ? booking.time : 'N/A';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
@@ -125,9 +112,8 @@ class PaymentReceivedJobDetailsScreen extends StatelessWidget {
                     child: Column(
                       children: [
                         _infoRow('Booking ID', bookingIdText),
-                        _infoRow('Service Type', serviceName),
-                        _infoRow('Booking Type', booking.totalHours > 0 ? 'Per Day' : 'Standard', isPill: true),
-                        _infoRow('Duration', totalHoursText),
+                        _infoRow('Category Name', serviceName),
+                        _infoRow('Total Duration', totalDurationText),
                       ],
                     ),
                   ),
@@ -166,7 +152,9 @@ class PaymentReceivedJobDetailsScreen extends StatelessWidget {
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    booking.rating > 0 ? booking.rating.toStringAsFixed(1) : '4.8',
+                                    booking.helper.rating > 0
+                                      ? booking.helper.rating.toStringAsFixed(1)
+                                      : '4.8',
                                     style: const TextStyle(
                                       fontSize: 13,
                                       color: textGrey,
@@ -178,9 +166,19 @@ class PaymentReceivedJobDetailsScreen extends StatelessWidget {
                             ],
                           ),
                         ),
-                        _CircleIconButton(icon: Icons.call, bgColor: booking.customer?.phone.isNotEmpty == true ? const Color(0xFF0D1F33) : Colors.grey),
+                        _CircleIconButton(
+                          icon: Icons.call,
+                          bgColor: booking.actions.canCallCustomer
+                              ? const Color(0xFF0D1F33)
+                              : Colors.grey,
+                        ),
                         const SizedBox(width: 10),
-                        _CircleIconButton(icon: Icons.message, bgColor: const Color(0xFFFF7A00)),
+                        _CircleIconButton(
+                          icon: Icons.message,
+                          bgColor: booking.actions.canChatCustomer
+                              ? const Color(0xFFFF7A00)
+                              : Colors.grey,
+                        ),
                       ],
                     ),
                   ),
@@ -194,12 +192,12 @@ class PaymentReceivedJobDetailsScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          booking.fullAddress.isNotEmpty ? booking.fullAddress : booking.location,
+                          booking.location.full,
                           style: const TextStyle(fontSize: 13, color: textGrey, height: 1.4),
                         ),
                         const SizedBox(height: 14),
                         OutlinedButton.icon(
-                          onPressed: () {},
+                          onPressed: booking.actions.canNavigate ? () {} : null,
                           style: OutlinedButton.styleFrom(
                             minimumSize: const Size.fromHeight(40),
                             side: const BorderSide(color: Color(0xFFE4E7EC)),
@@ -220,13 +218,14 @@ class PaymentReceivedJobDetailsScreen extends StatelessWidget {
                     icon: Icons.currency_rupee,
                     child: Column(
                       children: [
-                        _infoRow('Service Charge', '₹${paymentAmount.toStringAsFixed(0)}'),
-                        _infoRow('Platform Fee', '₹${booking.platformFee.toStringAsFixed(0)}'),
+                        _infoRow('Service Charge', _formatAmount(booking.paymentBreakdown.subtotal)),
+                        _infoRow('Platform Fee', _formatAmount(booking.paymentBreakdown.platformFee)),
+                        _infoRow('Tax & Fee', _formatAmount(booking.paymentBreakdown.tax)),
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 8.0),
                           child: Divider(color: Color(0xFFF2F4F7)),
                         ),
-                        _infoRow('Total Amount', '₹${booking.finalAmount > 0 ? booking.finalAmount.toStringAsFixed(0) : paymentAmount.toStringAsFixed(0)}', isBold: true),
+                        _infoRow('Total Amount', _formatAmount(paymentAmount), isBold: true),
                       ],
                     ),
                   ),
@@ -240,7 +239,7 @@ class PaymentReceivedJobDetailsScreen extends StatelessWidget {
                       children: [
                         _infoRow('Date', dateText, icon: Icons.calendar_today_outlined),
                         _infoRow('Time', timeText, icon: Icons.access_time),
-                        _infoRow('Duration', totalHoursText, icon: Icons.access_time),
+                        _infoRow('Duration', totalDurationText, icon: Icons.access_time),
                       ],
                     ),
                   ),
@@ -329,6 +328,11 @@ class PaymentReceivedJobDetailsScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _formatAmount(num value) {
+    if (value % 1 == 0) return '₹${value.toInt()}';
+    return '₹${value.toStringAsFixed(2)}';
   }
 }
 
