@@ -4,7 +4,7 @@ import 'package:dropdown_button2/dropdown_button2.dart';
 
 import '../../models/upcoming_job_model.dart';
 import '../../providers/partner_provider.dart';
-import 'upcoming_job_detail_screen.dart';
+import 'job_details_screen.dart';
 
 class UpcomingJobsScreen extends ConsumerStatefulWidget {
   const UpcomingJobsScreen({super.key});
@@ -219,18 +219,8 @@ class _UpcomingJobsScreenState extends ConsumerState<UpcomingJobsScreen> {
                               final UpcomingJobModel selected = _jobs[index];
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (_) => UpcomingJobDetailScreen(
-                                    customerName: selected.customerName,
-                                    rating: selected.displayRating,
-                                    serviceType: selected.serviceName,
-                                    earnings: selected.displayAmount,
-                                    bookingId: selected.bookingId,
-                                    dayLabel: selected.dayLabel,
-                                    timeLabel: selected.timeLabel,
-                                    durationLabel: selected.displayDuration,
-                                    address: selected.address,
-                                    latitude: selected.latitude,
-                                    longitude: selected.longitude,
+                                  builder: (_) => JobDetailsScreen(
+                                    bookingId: selected.id,
                                   ),
                                 ),
                               );

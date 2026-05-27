@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'api_endpoint.dart';
 import '../session/session_manager.dart';
 import '../utils/toast_helper.dart';
+import '../utils/session_expired_dialog.dart';
+import '../utils/navigator_service.dart' as nav;
 
 class ApiClient {
   late final Dio dio;
@@ -137,7 +139,17 @@ class ApiClient {
     if (opts.extra['skipLog'] == true) return false;
     return true;
   }
-
+  void _showSessionExpiredDialog() {
+    try {
+      // Get the current context from the navigator
+      final context = nav.navigatorKey.currentContext;
+      if (context != null && context.mounted) {
+        showSessionExpiredDialog(context);
+      }
+    } catch (_) {
+      // Fallback: just log if we can't show the dialog
+    }
+  }
   void _logRequest(RequestOptions opts) {
     if (!_shouldLogRequest(opts)) return;
 
@@ -238,6 +250,8 @@ class ApiClient {
               try {
                 await _session.clearSession();
               } catch (_) {}
+              // Session expired - show dialog and redirect to login
+              _showSessionExpiredDialog();
               return handler.next(err);
             }
             try {
@@ -261,6 +275,8 @@ class ApiClient {
             try {
               await _session.clearSession();
             } catch (_) {}
+            // Token refresh failed - show dialog and redirect
+            _showSessionExpiredDialog();
           }
           return handler.next(err);
         },

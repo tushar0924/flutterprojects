@@ -14,14 +14,19 @@ class JobHistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status = _statusText(job.status);
-    final statusColor = _statusColor(job.status);
+    final status = job.displayStatus;
+    final statusColor = _statusColor(
+      job.displayState.trim().isNotEmpty ? job.displayState : job.status,
+    );
+    final statusIcon = _statusIcon(
+      job.displayState.trim().isNotEmpty ? job.displayState : job.status,
+    );
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFD8DEE4)),
       ),
       child: Column(
@@ -60,7 +65,7 @@ class JobHistoryCard extends StatelessWidget {
                       ),
                     ),
                     if (job.hasRating) ...[
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
                       Row(
                         children: [
                           const Icon(
@@ -85,54 +90,31 @@ class JobHistoryCard extends StatelessWidget {
               ),
               Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
+                  Text(
+                    status,
+                    style: TextStyle(
                       color: statusColor,
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                    child: Text(
-                      status,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 11,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0B2545),
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                    child: Text(
-                      job.serviceType,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    statusIcon,
+                    size: 14,
+                    color: statusColor,
                   ),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Row(
             children: [
               const Icon(
                 Icons.calendar_today_outlined,
-                size: 15,
-                color: Color(0xFF344054),
+                size: 14,
+                color: Color(0xFF667085),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -141,9 +123,9 @@ class JobHistoryCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: Color(0xFF344054),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
+                    color: Color(0xFF475467),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
@@ -158,8 +140,8 @@ class JobHistoryCard extends StatelessWidget {
                   padding: EdgeInsets.only(top: 1),
                   child: Icon(
                     Icons.location_on_outlined,
-                    size: 15,
-                    color: Color(0xFF344054),
+                    size: 14,
+                    color: Color(0xFF667085),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -171,40 +153,46 @@ class JobHistoryCard extends StatelessWidget {
                     style: const TextStyle(
                       color: Color(0xFF344054),
                       fontSize: 14,
-                      fontWeight: FontWeight.w400,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
               ],
             ),
           ],
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0B2545),
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 child: Text(
-                  job.displayAmount,
+                  job.serviceType,
                   style: const TextStyle(
-                    color: Color(0xFF008FF0),
-                    fontSize: 30,
-                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
+              const Spacer(),
               SizedBox(
-                height: 36,
+                height: 34,
                 child: OutlinedButton(
                   onPressed: onViewDetails,
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFFCAD2DB)),
+                    side: const BorderSide(color: Color(0xFF98A2B3)),
                     foregroundColor: const Color(0xFF1D2939),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     textStyle: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   child: const Text('View Details'),
@@ -217,21 +205,21 @@ class JobHistoryCard extends StatelessWidget {
     );
   }
 
-  String _statusText(String rawStatus) {
-    final normalized = rawStatus.trim().toUpperCase();
-    if (normalized == 'CANCELLED' || normalized == 'CANCELED') {
-      return 'Canceled';
-    }
-    if (normalized == 'COMPLETED') return 'Completed';
-    if (normalized.isEmpty) return 'Completed';
-    return '${normalized[0]}${normalized.substring(1).toLowerCase()}';
-  }
-
   Color _statusColor(String rawStatus) {
     final normalized = rawStatus.trim().toUpperCase();
     if (normalized == 'CANCELLED' || normalized == 'CANCELED') {
-      return const Color(0xFFE70F18);
+      return const Color(0xFFE11D48);
     }
+    if (normalized == 'MISSED') return const Color(0xFFF59E0B);
     return const Color(0xFF22C55E);
+  }
+
+  IconData _statusIcon(String rawStatus) {
+    final normalized = rawStatus.trim().toUpperCase();
+    if (normalized == 'CANCELLED' || normalized == 'CANCELED') {
+      return Icons.cancel;
+    }
+    if (normalized == 'MISSED') return Icons.cancel;
+    return Icons.check_circle;
   }
 }

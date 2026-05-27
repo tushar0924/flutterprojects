@@ -5,7 +5,7 @@ import 'package:dropdown_button2/dropdown_button2.dart';
 import '../../../models/upcoming_job_model.dart';
 import '../../../providers/partner_provider.dart';
 
-import '../upcoming_job_detail_screen.dart';
+import '../job_details_screen.dart';
 import 'jobs_data.dart';
 
 class JobsDashboardTab extends ConsumerStatefulWidget {
@@ -20,25 +20,50 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
   String? _selectedDay;
   List<UpcomingJobModel> _apiJobs = [];
   bool _isLoading = true;
+  bool _isLoadingMore = false;
   String? _jobsApiMessage;
   int _totalUpcomingJobs = 0;
   int _todayJobsCount = 0;
+  int _currentPage = 1;
+  int _totalPages = 1;
+  late ScrollController _scrollController;
+
+  static const int _pageLimit = 15;
 
   @override
   void initState() {
     super.initState();
+    _scrollController = ScrollController();
+    _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadJobs());
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 500) {
+      _loadMoreJobs();
+    }
   }
 
   Future<void> _loadJobs() async {
     setState(() {
       _isLoading = true;
       _jobsApiMessage = null;
+      _currentPage = 1;
+      _totalPages = 1;
+      _apiJobs = [];
     });
 
     final repo = ref.read(partnerRepositoryProvider);
     final res = await repo.getUpcomingBookings(
-      limit: 50,
+      page: 1,
+      limit: _pageLimit,
       day: _dayParam(),
       serviceType: _serviceTypeParam(),
     );
@@ -48,8 +73,9 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
     if (success) {
       setState(() {
         _apiJobs = res.jobs;
-        _totalUpcomingJobs = res.totalUpcomingJobs;
-        _todayJobsCount = res.todayJobsCount;
+        _totalUpcomingJobs = res.pagination.total;
+        _currentPage = res.pagination.page;
+        _totalPages = res.pagination.totalPages;
         _isLoading = false;
       });
       return;
@@ -58,10 +84,40 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
     setState(() {
       _apiJobs = [];
       _totalUpcomingJobs = 0;
-      _todayJobsCount = 0;
       _jobsApiMessage = res.message;
       _isLoading = false;
     });
+  }
+
+  Future<void> _loadMoreJobs() async {
+    if (_isLoadingMore || _currentPage >= _totalPages) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    final nextPage = _currentPage + 1;
+    final repo = ref.read(partnerRepositoryProvider);
+    final res = await repo.getUpcomingBookings(
+      page: nextPage,
+      limit: _pageLimit,
+      day: _dayParam(),
+      serviceType: _serviceTypeParam(),
+    );
+    if (!mounted) return;
+
+    if (res.success) {
+      setState(() {
+        _apiJobs.addAll(res.jobs);
+        _currentPage = res.pagination.page;
+        _totalPages = res.pagination.totalPages;
+        _isLoadingMore = false;
+      });
+    } else {
+      setState(() {
+        _isLoadingMore = false;
+      });
+    }
   }
 
   List<UpcomingJobModel> get _jobs => _apiJobs;
@@ -142,6 +198,7 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       return SingleChildScrollView(
+                        controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
                         child: ConstrainedBox(
@@ -258,18 +315,8 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
                               onViewDetails: () {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
-                                    builder: (_) => UpcomingJobDetailScreen(
-                                      customerName: job.customerName,
-                                      rating: job.displayRating,
-                                      serviceType: job.serviceName,
-                                      earnings: job.displayAmount,
-                                      bookingId: job.bookingId,
-                                      dayLabel: job.dayLabel,
-                                      timeLabel: job.timeLabel,
-                                      durationLabel: job.displayDuration,
-                                      address: job.address,
-                                      latitude: job.latitude,
-                                      longitude: job.longitude,
+                                    builder: (_) => JobDetailsScreen(
+                                      bookingId: job.id,
                                     ),
                                   ),
                                 );
@@ -277,6 +324,22 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
                             ),
                           );
                         },
+                      ),
+                    if (_isLoadingMore)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: Center(
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.blue[400]!,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                             ],
                           ),
@@ -466,11 +529,14 @@ class _JobCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusText = _statusText(job.dayLabel);
-    final isToday = statusText.toLowerCase() == 'today';
-    final borderColor = isToday
+    final statusText = _statusText(job.displayState.isNotEmpty ? job.displayState : job.dayLabel);
+    final borderColor = statusText.toLowerCase() == 'today'
         ? const Color(0xFF22C55E)
-        : const Color(0xFFF97316);
+        : statusText.toLowerCase() == 'tomorrow'
+            ? const Color(0xFF0EA5E9)
+            : statusText.toLowerCase().contains('cancel')
+                ? const Color(0xFFEF4444)
+                : const Color(0xFFF97316);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 18, 14, 14),
@@ -626,6 +692,8 @@ class _JobCard extends StatelessWidget {
   String _statusText(String dayLabel) {
     final normalized = dayLabel.trim().toLowerCase();
     if (normalized.contains('today')) return 'Today';
+    if (normalized.contains('tomorrow')) return 'Tomorrow';
+    if (normalized.contains('cancel')) return 'Cancelled';
     return 'Upcoming';
   }
 }

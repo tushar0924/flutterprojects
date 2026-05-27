@@ -117,6 +117,53 @@ class _JobHistoryDetailScreenState extends ConsumerState<JobHistoryDetailScreen>
     );
   }
 
+  String get _categoryName {
+    return _getNestedString(
+      const ['category', 'name'],
+      fallback: _serviceType,
+    );
+  }
+
+  List<String> get _serviceNames {
+    final services = _detail['services'];
+    if (services is List) {
+      return services
+          .whereType<Map<String, dynamic>>()
+          .map((item) => item['name']?.toString() ?? '')
+          .where((name) => name.trim().isNotEmpty)
+          .toList();
+    }
+    return const <String>[];
+  }
+
+  List<_ServiceDetailItem> get _serviceDetails {
+    final services = _detail['services'];
+    if (services is List) {
+      return services.whereType<Map<String, dynamic>>().map((item) {
+        return _ServiceDetailItem(
+          name: item['name']?.toString() ?? 'Service',
+          included: _toStringList(item['included']),
+          notIncluded: _toStringList(item['notIncluded']),
+          requirements: _toStringList(item['requirements']),
+        );
+      }).toList();
+    }
+    return const <_ServiceDetailItem>[];
+  }
+
+  List<String> get _requirements {
+    final services = _detail['services'];
+    if (services is List) {
+      for (final entry in services) {
+        if (entry is Map<String, dynamic>) {
+          final items = _toStringList(entry['requirements']);
+          if (items.isNotEmpty) return items;
+        }
+      }
+    }
+    return const <String>[];
+  }
+
   String get _bookingRef {
     return _getString(
       const ['bookingRequestId', 'bookingReference', 'bookingCode', 'referenceId', 'id'],
@@ -131,31 +178,6 @@ class _JobHistoryDetailScreenState extends ConsumerState<JobHistoryDetailScreen>
     );
   }
 
-  String get _statusText {
-    final normalized = _statusRaw.trim().toUpperCase();
-    if (normalized == 'COMPLETED') return 'Delivered';
-    if (normalized == 'CANCELLED' || normalized == 'CANCELED') {
-      return 'Cancelled';
-    }
-    if (normalized.isEmpty) return widget.summary.displayStatus;
-    return _toTitleCase(normalized.toLowerCase());
-  }
-
-  Color get _statusBgColor {
-    final normalized = _statusRaw.trim().toUpperCase();
-    if (normalized == 'CANCELLED' || normalized == 'CANCELED') {
-      return const Color(0xFFFEE4E2);
-    }
-    return const Color(0xFF0EA5E9);
-  }
-
-  Color get _statusTextColor {
-    final normalized = _statusRaw.trim().toUpperCase();
-    if (normalized == 'CANCELLED' || normalized == 'CANCELED') {
-      return const Color(0xFFB42318);
-    }
-    return Colors.white;
-  }
 
   String get _dateLabel {
     return _getString(
@@ -205,9 +227,13 @@ class _JobHistoryDetailScreenState extends ConsumerState<JobHistoryDetailScreen>
   }
 
   String get _address {
+    final locationFull = _getNestedString(const ['location', 'full']);
+    if (locationFull.trim().isNotEmpty) return locationFull;
     return _getString(
-      const ['fullAddress', 'address', 'serviceLocation', 'location'],
-      fallback: widget.summary.address,
+      const ['fullAddress', 'address', 'serviceLocation'],
+      fallback: widget.summary.fullAddress.isNotEmpty
+          ? widget.summary.fullAddress
+          : widget.summary.address,
     );
   }
 
@@ -254,313 +280,658 @@ class _JobHistoryDetailScreenState extends ConsumerState<JobHistoryDetailScreen>
     return '₹${_amount.toStringAsFixed(2)}';
   }
 
-  String get _serviceSummary {
-    return 'Jhadu, Pocha aur Bartan';
+  num get _serviceCharge {
+    final value = _getNestedNum(const ['paymentBreakdown', 'serviceCharge']);
+    return value > 0 ? value : _amount;
   }
 
-  String get _serviceTitle {
-    final name = _serviceType.trim();
-    if (name.isEmpty) return 'Service';
-    if (name.toLowerCase().contains('service')) return name;
-    return '$name Service';
+  num get _companyCharge {
+    return _getNestedNum(const ['paymentBreakdown', 'platformFee']);
+  }
+
+  num get _totalAmount {
+    final value = _getNestedNum(const ['paymentBreakdown', 'finalPayable']);
+    return value > 0 ? value : _amount;
+  }
+
+  String _formatAmount(num value) {
+    if (value % 1 == 0) return '₹${value.toInt()}';
+    return '₹${value.toStringAsFixed(2)}';
+  }
+
+  num _getNestedNum(List<String> path, {num fallback = 0}) {
+    dynamic current = _detail;
+    for (final segment in path) {
+      if (current is Map<String, dynamic> && current.containsKey(segment)) {
+        current = current[segment];
+      } else {
+        return fallback;
+      }
+    }
+    if (current is num) return current;
+    return num.tryParse(current?.toString() ?? '') ?? fallback;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF2F4F7),
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: const Color(0xFF0B2239),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white, size: 22),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: const Text(
-          'Job Detail',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w500,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(96),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.only(
+            bottomLeft: Radius.circular(24),
+            bottomRight: Radius.circular(24),
+          ),
+          child: AppBar(
+            elevation: 0,
+            backgroundColor: const Color(0xFF1B3A52),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Job Details',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  _bookingRef,
+                  style: const TextStyle(
+                    color: Color(0xFFA0A9B3),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
       body: RefreshIndicator(
         onRefresh: _loadDetail,
         child: _isLoading
-            ? ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                children: const [
-                  SizedBox(height: 220),
-                  Center(child: CircularProgressIndicator()),
-                ],
-              )
+            ? const _JobHistoryDetailSkeleton()
             : _error != null
-            ? ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                children: [
-                  const SizedBox(height: 180),
-                  Center(
-                    child: Text(
-                      _error!,
-                      style: const TextStyle(
-                        color: Color(0xFF667085),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      const SizedBox(height: 180),
+                      Center(
+                        child: Text(
+                          _error!,
+                          style: const TextStyle(
+                            color: Color(0xFF667085),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                       ),
+                    ],
+                  )
+                : SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    child: Column(
+                      children: [
+                        _serviceDetailsCard(),
+                        const SizedBox(height: 12),
+                        _customerDetailsCard(),
+                        const SizedBox(height: 12),
+                        _serviceLocationCard(),
+                        const SizedBox(height: 12),
+                        _timingCard(),
+                        const SizedBox(height: 12),
+                        _paymentDetailsCard(),
+                      ],
                     ),
                   ),
-                ],
-              )
-            : SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                child: Column(
-                  children: [
-                    _serviceCard(),
-                    const SizedBox(height: 16),
-                    _customerCard(),
-                    const SizedBox(height: 16),
-                    _earningsCard(),
-                    const SizedBox(height: 16),
-                    _importantInfoCard(),
-                  ],
-                ),
-              ),
       ),
     );
   }
 
-  Widget _serviceCard() {
+  Widget _serviceDetailsCard() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFEAECF0)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: Text(
-                  _serviceTitle,
-                  style: const TextStyle(
-                    color: Color(0xFF101828),
-                    fontSize: 28,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _statusBgColor,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  _statusText,
-                  style: TextStyle(
-                    color: _statusTextColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Booking ID: $_bookingRef',
-            style: const TextStyle(color: Color(0xFF667085), fontSize: 14),
-          ),
-          Text(
-            _serviceSummary,
-            style: const TextStyle(color: Color(0xFF475467), fontSize: 14),
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 20),
-            child: Divider(color: Color(0xFFEAECF0), height: 1),
-          ),
-          _ServiceInfoRow(
-            icon: Icons.calendar_today_outlined,
-            label: 'Date',
-            value: _dateLabel.isNotEmpty ? _dateLabel : '-',
-          ),
-          const SizedBox(height: 16),
-          _ServiceInfoRow(
-            icon: Icons.access_time,
-            label: 'Time & Duration',
-            value: _timeAndDuration,
-          ),
-          const SizedBox(height: 16),
-          _ServiceInfoRow(
-            icon: Icons.location_on_outlined,
-            label: 'Service Location',
-            value: _address.isNotEmpty ? _address : '-',
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _customerCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFEAECF0)),
-      ),
-      child: Row(
-        children: [
-          const CircleAvatar(
-            radius: 24,
-            backgroundColor: Color(0xFF0B2239),
-            child: Icon(Icons.person_outline, color: Colors.white, size: 24),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _customerName,
-                  style: const TextStyle(
-                    color: Color(0xFF101828),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(Icons.star, color: Color(0xFFFDB022), size: 16),
-                    const SizedBox(width: 4),
-                    Text(
-                      _displayRating,
-                      style: const TextStyle(
-                        color: Color(0xFF475467),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _earningsCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFEAECF0)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: const [
-              Icon(Icons.currency_rupee, size: 24, color: Color(0xFF667085)),
-              SizedBox(width: 10),
-              Text(
-                'Your Earnings',
+              const Icon(Icons.assignment_outlined, color: Color(0xFF0F172A), size: 18),
+              const SizedBox(width: 8),
+              const Text(
+                'Service Details',
                 style: TextStyle(
-                  color: Color(0xFF344054),
+                  color: Color(0xFF0F172A),
                   fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _displayAmount,
-            style: const TextStyle(
-              color: Color(0xFF22C55E),
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Payment will be transferred after service completion.',
-            style: TextStyle(color: Color(0xFF667085), fontSize: 12),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _importantInfoCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEFF6FF),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFDBEAFE)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: const [
-              Icon(Icons.info_outline, color: Color(0xFF2563EB), size: 20),
-              SizedBox(width: 10),
-              Text(
-                'Important Information',
-                style: TextStyle(
-                  color: Color(0xFF1E3A8A),
-                  fontSize: 15,
                   fontWeight: FontWeight.w700,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          _infoPoint('Arrive 10 minutes before scheduled time'),
-          _infoPoint('Carry necessary cleaning supplies'),
-          _infoPoint('Follow all safety guidelines'),
-          _infoPoint('Be professional and courteous'),
+          _DetailRow(label: 'Booking ID', value: _bookingRef),
+          const SizedBox(height: 10),
+          _DetailRow(label: 'Category Name', value: _categoryName),
+          const SizedBox(height: 10),
+          _DetailRow(label: 'Duration', value: _durationLabel.isNotEmpty ? _durationLabel : '-'),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Service detail',
+                  style: TextStyle(
+                    color: Color(0xFF667085),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: _serviceNames.isEmpty ? null : _showServiceDetails,
+                child: Container(
+                  padding: const EdgeInsets.only(bottom: 1),
+                  decoration: _serviceNames.isEmpty
+                      ? null
+                      : const BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(
+                              color: Color(0xFF60A5FA),
+                              width: 1,
+                            ),
+                          ),
+                        ),
+                  child: Text(
+                    'View Detail',
+                    style: TextStyle(
+                      color: _serviceNames.isEmpty
+                          ? const Color(0xFF98A2B3)
+                          : const Color(0xFF60A5FA),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _infoPoint(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
+  Widget _customerDetailsCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEAECF0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.person_outline, color: Color(0xFF0F172A), size: 18),
+              SizedBox(width: 8),
+              Text(
+                'Customer Details',
+                style: TextStyle(
+                  color: Color(0xFF0F172A),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const CircleAvatar(
+                radius: 22,
+                backgroundColor: Color(0xFF0B2239),
+                child: Icon(Icons.person_outline, color: Colors.white, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _customerName,
+                      style: const TextStyle(
+                        color: Color(0xFF101828),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(Icons.star, color: Color(0xFFFDB022), size: 14),
+                        const SizedBox(width: 4),
+                        Text(
+                          _displayRating,
+                          style: const TextStyle(
+                            color: Color(0xFF475467),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              _circleAction(icon: Icons.call),
+              const SizedBox(width: 8),
+              _circleAction(icon: Icons.chat_bubble_outline),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _serviceLocationCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEAECF0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.location_on_outlined, color: Color(0xFF0F172A), size: 18),
+              SizedBox(width: 8),
+              Text(
+                'Service Location',
+                style: TextStyle(
+                  color: Color(0xFF0F172A),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            _address.isNotEmpty ? _address : '-',
+            style: const TextStyle(
+              color: Color(0xFF344054),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _timingCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEAECF0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.access_time, color: Color(0xFF0F172A), size: 18),
+              SizedBox(width: 8),
+              Text(
+                'Timing',
+                style: TextStyle(
+                  color: Color(0xFF0F172A),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _TimingRow(
+            icon: Icons.calendar_today_outlined,
+            label: 'Date',
+            value: _dateLabel.isNotEmpty ? _dateLabel : '-',
+          ),
+          const SizedBox(height: 10),
+          _TimingRow(
+            icon: Icons.access_time,
+            label: 'Time',
+            value: _timeLabel.isNotEmpty ? _timeLabel : '-',
+          ),
+          const SizedBox(height: 10),
+          _TimingRow(
+            icon: Icons.timelapse,
+            label: 'Duration',
+            value: _durationLabel.isNotEmpty ? _durationLabel : '-',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _paymentDetailsCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEAECF0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.currency_rupee, color: Color(0xFF0F172A), size: 18),
+              SizedBox(width: 8),
+              Text(
+                'Payment Details',
+                style: TextStyle(
+                  color: Color(0xFF0F172A),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _DetailRow(label: 'Service Charge', value: _formatAmount(_serviceCharge)),
+          const SizedBox(height: 8),
+          _DetailRow(label: 'Company Charge', value: _formatAmount(_companyCharge)),
+          const SizedBox(height: 10),
+          const Divider(height: 1, color: Color(0xFFEAECF0)),
+          const SizedBox(height: 10),
+          _DetailRow(
+            label: 'Total Amount',
+            value: _formatAmount(_totalAmount),
+            isEmphasis: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _circleAction({required IconData icon}) {
+    return Container(
+      width: 30,
+      height: 30,
+      decoration: const BoxDecoration(
+        color: Color(0xFF0B2239),
+        shape: BoxShape.circle,
+      ),
+      child: Icon(icon, color: Colors.white, size: 16),
+    );
+  }
+
+  void _showServiceDetails() {
+    final items = _serviceDetails;
+    if (items.isEmpty) return;
+    final requirements = _requirements;
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Services Details',
+                        style: TextStyle(
+                          color: Color(0xFF101828),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 18, color: Color(0xFF667085)),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: items
+                          .map((item) => _ServiceDetailCard(item: item))
+                          .toList(),
+                    ),
+                  ),
+                ),
+                if (requirements.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _RequirementsCard(items: requirements),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ServiceDetailItem {
+  const _ServiceDetailItem({
+    required this.name,
+    required this.included,
+    required this.notIncluded,
+    required this.requirements,
+  });
+
+  final String name;
+  final List<String> included;
+  final List<String> notIncluded;
+  final List<String> requirements;
+}
+
+class _ServiceDetailCard extends StatefulWidget {
+  const _ServiceDetailCard({required this.item});
+
+  final _ServiceDetailItem item;
+
+  @override
+  State<_ServiceDetailCard> createState() => _ServiceDetailCardState();
+}
+
+class _ServiceDetailCardState extends State<_ServiceDetailCard> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.item;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEAECF0)),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    item.name,
+                    style: const TextStyle(
+                      color: Color(0xFF101828),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Icon(
+                  _expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                  color: const Color(0xFF2563EB),
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+          if (_expanded) ...[
+            const SizedBox(height: 12),
+            _chipSection(
+              title: 'Includes',
+              items: item.included,
+              background: const Color(0xFFDCFCE7),
+              foreground: const Color(0xFF166534),
+            ),
+            if (item.notIncluded.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _chipSection(
+                title: 'Not Included',
+                items: item.notIncluded,
+                background: const Color(0xFFFEE2E2),
+                foreground: const Color(0xFFB91C1C),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _chipSection({
+    required String title,
+    required List<String> items,
+    required Color background,
+    required Color foreground,
+  }) {
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: Color(0xFF667085),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: items
+              .map(
+                (text) => Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: background,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    text,
+                    style: TextStyle(
+                      color: foreground,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+      ],
+    );
+  }
+}
+
+class _RequirementsCard extends StatelessWidget {
+  const _RequirementsCard({required this.items});
+
+  final List<String> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            '• ',
+            'What You Need From Customer',
             style: TextStyle(
-              color: Color(0xFF2563EB),
-              fontWeight: FontWeight.bold,
+              color: Color(0xFF0F172A),
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(
-                color: Color(0xFF2563EB),
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
+          const SizedBox(height: 10),
+          ...items.map(
+            (text) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.circle, size: 6, color: Color(0xFF2563EB)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      text,
+                      style: const TextStyle(
+                        color: Color(0xFF2563EB),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -570,8 +941,54 @@ class _JobHistoryDetailScreenState extends ConsumerState<JobHistoryDetailScreen>
   }
 }
 
-class _ServiceInfoRow extends StatelessWidget {
-  const _ServiceInfoRow({
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({
+    required this.label,
+    required this.value,
+    this.isEmphasis = false,
+  });
+
+  final String label;
+  final String value;
+  final bool isEmphasis;
+
+  @override
+  Widget build(BuildContext context) {
+    final valueStyle = TextStyle(
+      color: const Color(0xFF101828),
+      fontSize: isEmphasis ? 14 : 12,
+      fontWeight: isEmphasis ? FontWeight.w700 : FontWeight.w600,
+    );
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF667085),
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        Text(value, style: valueStyle),
+      ],
+    );
+  }
+}
+
+List<String> _toStringList(dynamic value) {
+  if (value is List) {
+    return value
+        .map((item) => item?.toString() ?? '')
+        .where((text) => text.trim().isNotEmpty)
+        .toList();
+  }
+  return const <String>[];
+}
+
+class _TimingRow extends StatelessWidget {
+  const _TimingRow({
     required this.icon,
     required this.label,
     required this.value,
@@ -584,28 +1001,25 @@ class _ServiceInfoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: const Color(0xFF0EA5E9), size: 20),
-        const SizedBox(width: 12),
+        Icon(icon, size: 14, color: const Color(0xFF98A2B3)),
+        const SizedBox(width: 8),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(color: Color(0xFF667085), fontSize: 12),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: const TextStyle(
-                  color: Color(0xFF101828),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF667085),
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Color(0xFF101828),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],
@@ -613,13 +1027,116 @@ class _ServiceInfoRow extends StatelessWidget {
   }
 }
 
-String _toTitleCase(String text) {
-  if (text.trim().isEmpty) return text;
-  return text
-      .split(' ')
-      .where((word) => word.trim().isNotEmpty)
-      .map(
-        (word) => '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}',
-      )
-      .join(' ');
+class _JobHistoryDetailSkeleton extends StatelessWidget {
+  const _JobHistoryDetailSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    const baseColor = Color(0xFFE4E7EC);
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      children: [
+        _skeletonCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _line(width: 120, height: 12, color: baseColor),
+              const SizedBox(height: 12),
+              _line(width: double.infinity, height: 10, color: baseColor),
+              const SizedBox(height: 10),
+              _line(width: 180, height: 10, color: baseColor),
+              const SizedBox(height: 10),
+              _line(width: 140, height: 10, color: baseColor),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _skeletonCard(
+          child: Row(
+            children: [
+              _circle(size: 44, color: baseColor),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _line(width: 120, height: 10, color: baseColor),
+                    const SizedBox(height: 6),
+                    _line(width: 60, height: 10, color: baseColor),
+                  ],
+                ),
+              ),
+              _circle(size: 28, color: baseColor),
+              const SizedBox(width: 8),
+              _circle(size: 28, color: baseColor),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _skeletonCard(child: _line(width: double.infinity, height: 10, color: baseColor)),
+        const SizedBox(height: 12),
+        _skeletonCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _line(width: 90, height: 10, color: baseColor),
+              const SizedBox(height: 8),
+              _line(width: double.infinity, height: 10, color: baseColor),
+              const SizedBox(height: 8),
+              _line(width: double.infinity, height: 10, color: baseColor),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _skeletonCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _line(width: 100, height: 10, color: baseColor),
+              const SizedBox(height: 8),
+              _line(width: double.infinity, height: 10, color: baseColor),
+              const SizedBox(height: 8),
+              _line(width: double.infinity, height: 10, color: baseColor),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _skeletonCard({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEAECF0)),
+      ),
+      child: child,
+    );
+  }
+
+  static Widget _line({required double width, required double height, required Color color}) {
+    return Container(
+      height: height,
+      width: width,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(6),
+      ),
+    );
+  }
+
+  static Widget _circle({required double size, required Color color}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+      ),
+    );
+  }
 }

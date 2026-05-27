@@ -144,13 +144,9 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 100),
         child: Column(
           children: [
-            // Waiting For Payment Warning
-            if (booking.status == 'PENDING_PAYMENT') _warningCard(),
-            if (booking.status == 'PENDING_PAYMENT') const SizedBox(height: 12),
-
             // Service Details
             _SectionContainer(
               title: 'Service Details',
@@ -158,13 +154,22 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
               child: Column(
                 children: [
                   _infoRow('Booking ID', booking.id.toString()),
-                  _infoRow('Service Type', booking.service?.name ?? 'N/A'),
-                  _infoRow(
-                    'Booking Type',
-                    '${booking.totalHours} Hours',
-                    isPill: true,
+                  _infoRow('Category Name', booking.service?.name ?? 'N/A'),
+                  _infoRow('Duration', '${booking.totalHours} hours'),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: GestureDetector(
+                      onTap: () {},
+                      child: const Text(
+                        'View Detail',
+                        style: TextStyle(
+                          color: Color(0xFF0EA5E9),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
                   ),
-                  _infoRow('Duration', '${booking.duration} hours'),
                 ],
               ),
             ),
@@ -177,30 +182,88 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
               child: Column(
                 children: [
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       CircleAvatar(
-                        radius: 20,
-                        backgroundColor: Colors.grey.shade200,
+                        radius: 22,
+                        backgroundColor: const Color(0xFF0B2545),
                         child: Text(
                           booking.customer?.fullName.isNotEmpty == true
                               ? booking.customer!.fullName[0].toUpperCase()
                               : 'C',
-                          style: const TextStyle(color: textGrey),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              booking.customer?.fullName ?? 'Customer',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.star,
+                                  size: 12,
+                                  color: Color(0xFFFDB022),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '4.8',
+                                  style: const TextStyle(
+                                    color: textGrey,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      Row(
                         children: [
-                          Text(
-                            booking.customer?.fullName ?? 'Customer',
-                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          GestureDetector(
+                            onTap: () {},
+                            child: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0B2545),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.call,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ),
                           ),
-                          Text(
-                            booking.customer?.phone ?? 'N/A',
-                            style: const TextStyle(
-                              color: textGrey,
-                              fontSize: 12,
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () {},
+                            child: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF97316),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.chat,
+                                color: Colors.white,
+                                size: 18,
+                              ),
                             ),
                           ),
                         ],
@@ -234,9 +297,35 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
                     style: const TextStyle(fontSize: 13, color: textGrey),
                   ),
                   const SizedBox(height: 12),
+                  GestureDetector(
+                    onTap: () {},
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.done,
+                          size: 16,
+                          color: Color(0xFF22C55E),
+                        ),
+                        const SizedBox(width: 6),
+                        const Text(
+                          'Get Directions',
+                          style: TextStyle(
+                            color: Color(0xFF0EA5E9),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   if (booking.status == 'PENDING_PAYMENT')
-                    _LockedActionCard(
-                      text: 'Navigation will be available after payment',
+                    Column(
+                      children: [
+                        const SizedBox(height: 12),
+                        _LockedActionCard(
+                          text: 'Navigation will be available after payment',
+                        ),
+                      ],
                     ),
                 ],
               ),
@@ -260,7 +349,7 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
                     icon: Icons.access_time,
                   ),
                   _infoRow(
-                    'Duration',
+                    'Total Duration',
                     '${booking.totalHours} hours',
                     icon: Icons.access_time,
                   ),
@@ -280,7 +369,7 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
                     '₹${booking.totalAmount.toStringAsFixed(0)}',
                   ),
                   _infoRow(
-                    'Platform Fee',
+                    'Tax & Fee',
                     '₹${booking.platformFee.toStringAsFixed(0)}',
                   ),
                   const Divider(height: 24),
@@ -292,11 +381,61 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 12),
-
-            // Important Information
-            _importantInfo(booking.status),
-            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+      bottomSheet: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(
+            top: BorderSide(color: Colors.grey.shade200),
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () {},
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  side: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text(
+                  'Report Issue',
+                  style: TextStyle(
+                    color: Color(0xFFEF4444),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () {},
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  backgroundColor: const Color(0xFF1D2939),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 0,
+                ),
+                child: const Text(
+                  'Start',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -409,40 +548,6 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
     }
   }
 
-  Widget _warningCard() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF9ED),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFFFE0B2)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          Icon(Icons.error_outline, color: Colors.orange, size: 20),
-          SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Waiting For Payment',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'This screen will auto-open payment confirmation in 5 seconds.',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF6D4C41)),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _infoRow(
     String label,
     String value, {
@@ -488,73 +593,6 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
                 fontSize: isBold ? 15 : 13,
               ),
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _importantInfo(String status) {
-    final List<String> infoPoints = status == 'PENDING_PAYMENT'
-        ? [
-            'Customer is currently completing the payment process',
-            'Complete job details including contact information will be available after payment confirmation',
-            'You will receive a notification once payment is completed',
-            'Please be ready to start the job as scheduled',
-          ]
-        : [
-            'Make sure to arrive on time',
-            'Contact customer before arrival',
-            'Maintain professional standards',
-            'Complete the job as agreed',
-          ];
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF0F7FF),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFD1E3FF)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: const [
-              Icon(Icons.info_outline, color: Colors.blue, size: 18),
-              SizedBox(width: 8),
-              Text(
-                'Important Information',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF13223A),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ...infoPoints.map((point) => _bulletPoint(point)),
-        ],
-      ),
-    );
-  }
-
-  Widget _bulletPoint(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
-            child: Icon(Icons.circle, size: 4, color: Colors.blue),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(fontSize: 12, color: Color(0xFF344054)),
-            ),
-          ),
         ],
       ),
     );

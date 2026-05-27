@@ -581,18 +581,8 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
                 final selected = _upcomingJobs[i];
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => UpcomingJobDetailScreen(
-                      customerName: selected.customerName,
-                      rating: selected.displayRating,
-                      serviceType: selected.serviceName,
-                      earnings: selected.displayAmount,
-                      bookingId: selected.bookingId,
-                      dayLabel: selected.dayLabel,
-                      timeLabel: selected.timeLabel,
-                      durationLabel: selected.displayDuration,
-                      address: selected.address,
-                      latitude: selected.latitude,
-                      longitude: selected.longitude,
+                    builder: (_) => JobDetailsScreen(
+                      bookingId: selected.id,
                     ),
                   ),
                 );
@@ -802,156 +792,200 @@ class _DetailRow extends StatelessWidget {
   }
 }
 
-class _UpcomingJobCard extends StatelessWidget {
-  const _UpcomingJobCard({required this.job, required this.onTap});
 
-  final UpcomingJobModel job;
-  final VoidCallback onTap;
+    class _UpcomingJobCard extends StatelessWidget {
+      const _UpcomingJobCard({required this.job, required this.onTap});
 
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        width: 278,
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFFFFF),
+      final UpcomingJobModel job;
+      final VoidCallback onTap;
+
+      @override
+      Widget build(BuildContext context) {
+        // Determine presentation state and colors
+        final statusSource = job.displayState.isNotEmpty ? job.displayState : job.dayLabel;
+        String _normalize(String src) {
+          final n = src.trim().toLowerCase();
+          if (n.contains('today')) return 'Today';
+          if (n.contains('tomorrow')) return 'Tomorrow';
+          if (n.contains('cancel')) return 'Cancelled';
+          return 'Upcoming';
+        }
+
+        final statusText = _normalize(statusSource);
+        final borderColor = statusText.toLowerCase() == 'today'
+            ? const Color(0xFF22C55E)
+            : statusText.toLowerCase() == 'tomorrow'
+                ? const Color(0xFF0EA5E9)
+                : statusText.toLowerCase().contains('cancel')
+                    ? const Color(0xFFEF4444)
+                    : const Color(0xFFF97316);
+
+        return InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFD6DADF)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF0B2545),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.person_outline,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        job.customerName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFF101828),
-                          fontSize: 17,
-                          fontWeight: FontWeight.w500,
-                        ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                top: -18,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: borderColor,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      statusText,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
                       ),
-                      const SizedBox(height: 1),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.star,
-                            color: Color(0xFFF59E0B),
-                            size: 14,
-                          ),
-                          const SizedBox(width: 2),
-                          Text(
-                            job.displayRating,
-                            style: const TextStyle(
-                              color: Color(0xFF101828),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0B2545),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    job.serviceName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            _infoRow(Icons.calendar_month_outlined, job.displaySchedule),
-            const SizedBox(height: 6),
-            _infoRow(Icons.access_time_outlined, _durationLine),
-            const SizedBox(height: 6),
-            _infoRow(Icons.currency_rupee, _rateLine),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String get _durationLine {
-    final raw = job.displayDuration.trim();
-    if (raw.isEmpty || raw == '—') return '—';
-    final lower = raw.toLowerCase();
-    if (lower.contains('duration')) return raw;
-    return '$raw duration';
-  }
-
-  String get _rateLine {
-    final raw = job.displayAmount.trim();
-    if (raw.isEmpty || raw == '—') return '—';
-    final lower = raw.toLowerCase();
-    if (lower.contains('hour') ||
-        lower.contains('/hr') ||
-        lower.contains('/hour')) {
-      return raw;
-    }
-    return '$raw per hour';
-  }
-
-  Widget _infoRow(IconData icon, String text) {
-    return Padding(
-      padding: EdgeInsets.zero,
-      child: Row(
-        children: [
-          Icon(icon, size: 17, color: const Color(0xFF1F2937)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF1F2937),
-                fontWeight: FontWeight.w400,
               ),
-            ),
+              Container(
+                width: 278,
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFFFF),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF0B2545),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.person_outline,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                job.customerName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Color(0xFF101828),
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 1),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.star,
+                                    color: Color(0xFFF59E0B),
+                                    size: 14,
+                                  ),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    job.displayRating,
+                                    style: const TextStyle(
+                                      color: Color(0xFF101828),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0B2545),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            job.serviceName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    _infoRow(Icons.calendar_month_outlined, job.displaySchedule),
+                    const SizedBox(height: 6),
+                    _infoRow(Icons.access_time_outlined, _durationLine),
+                    const SizedBox(height: 6),
+                    _infoRow(Icons.currency_rupee, _rateLine),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
-  }
-}
+        );
+      }
+      String get _durationLine {
+        final raw = job.displayDuration.trim();
+        if (raw.isEmpty || raw == '—') return '—';
+        final lower = raw.toLowerCase();
+        if (lower.contains('duration')) return raw;
+        return '$raw duration';
+      }
+
+      String get _rateLine {
+        final raw = job.displayAmount.trim();
+        if (raw.isEmpty || raw == '—') return '—';
+        final lower = raw.toLowerCase();
+        if (lower.contains('hour') || lower.contains('/hr') || lower.contains('/hour')) {
+          return raw;
+        }
+        return '$raw per hour';
+      }
+
+      Widget _infoRow(IconData icon, String text) {
+        return Padding(
+          padding: EdgeInsets.zero,
+          child: Row(
+            children: [
+              Icon(icon, size: 17, color: const Color(0xFF1F2937)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF1F2937),
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    }

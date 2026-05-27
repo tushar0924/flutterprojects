@@ -6,6 +6,7 @@ import 'routes/app_router.dart';
 import 'session/session_manager.dart';
 import 'widgets/connectivity_guard.dart';
 import 'widgets/professional_page_transitions.dart';
+import 'utils/navigator_service.dart' as nav;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,6 +23,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Helperr4U - Demo',
+      navigatorKey: nav.navigatorKey,
       theme: AppTheme.light().copyWith(
         pageTransitionsTheme: const PageTransitionsTheme(
           builders: {

@@ -1,90 +1,83 @@
 class UpcomingJobModel {
   const UpcomingJobModel({
-    required this.bookingId,
-    required this.customerName,
-    required this.serviceName,
-    required this.serviceType,
-    required this.helperName,
-    required this.helperRating,
-    required this.bookingDate,
-    required this.startTime,
-    required this.endTime,
-    required this.dayLabel,
-    required this.timeLabel,
+    required this.id,
+    required this.status,
+    required this.jobState,
+    required this.displayState,
+    required this.date,
+    required this.time,
     required this.duration,
-    required this.durationLabel,
-    required this.address,
-    required this.latitude,
-    required this.longitude,
-    required this.finalAmount,
-    required this.amountLabel,
-    required this.jobStatus,
+    required this.category,
+    required this.services,
+    required this.customer,
+    required this.helper,
+    required this.location,
+    required this.payment,
+    required this.payout,
+    required this.timeline,
   });
 
-  final int bookingId;
-  final String customerName;
-  final String serviceName;
-  final String serviceType;
-  final String helperName;
-  final double helperRating;
-  final String bookingDate;
-  final String startTime;
-  final String endTime;
-  final String dayLabel;
-  final String timeLabel;
-  final int duration;
-  final String durationLabel;
-  final String address;
-  final double? latitude;
-  final double? longitude;
-  final num finalAmount;
-  final String amountLabel;
-  final String jobStatus;
+  final int id;
+  final String status; // CONFIRMED, PENDING, etc.
+  final String jobState; // UPCOMING, ACTIVE, COMPLETED, etc.
+  final String displayState; // Presentation state from API (e.g. TODAY, TOMORROW)
+  final String date; // "Friday, May 29, 2026"
+  final String time; // "04:00 PM"
+  final String duration; // "2 hours"
+  final JobCategory category;
+  final List<JobService> services;
+  final JobCustomer customer;
+  final JobHelper helper;
+  final JobLocation location;
+  final JobPayment payment;
+  final JobPayout payout;
+  final JobTimeline timeline;
 
   factory UpcomingJobModel.fromJson(Map<String, dynamic> json) {
     return UpcomingJobModel(
-      bookingId: _toInt(json['bookingId']),
-      customerName: _toString(json['customerName'], fallback: 'Customer'),
-      serviceName: _toString(
-        json['serviceName'],
-        fallback: _toString(json['serviceType'], fallback: 'Service'),
-      ),
-      serviceType: _toString(json['serviceType'], fallback: 'Service'),
-      helperName: _toString(json['helperName'], fallback: 'Helper Assigned'),
-      helperRating: _toDouble(json['helperRating']),
-      bookingDate: _toString(json['bookingDate']),
-      startTime: _toString(json['startTime']),
-      endTime: _toString(json['endTime']),
-      dayLabel: _toString(json['dayLabel']),
-      timeLabel: _toString(json['timeLabel']),
-      duration: _toInt(json['duration']),
-      durationLabel: _toString(json['durationLabel']),
-      address: _toString(json['address'], fallback: '—'),
-      latitude: _toNullableDouble(json['latitude']),
-      longitude: _toNullableDouble(json['longitude']),
-      finalAmount: _toNum(json['finalAmount']),
-      amountLabel: _toString(json['amountLabel']),
-      jobStatus: _toString(json['jobStatus']),
+      id: _toInt(json['id']),
+      status: _toString(json['status'], fallback: 'PENDING'),
+      jobState: _toString(json['jobState'], fallback: 'UPCOMING'),
+      displayState: _toString(json['displayState'] ?? json['jobState'], fallback: ''),
+      date: _toString(json['date']),
+      time: _toString(json['time']),
+      // API may return `durationLabel`; prefer it when available for UI display.
+      duration: _toString(json['durationLabel'] ?? json['duration']),
+      category: JobCategory.fromJson(json['category'] as Map<String, dynamic>? ?? {}),
+      services: _parseServices(json['services']),
+      customer: JobCustomer.fromJson(json['customer'] as Map<String, dynamic>? ?? {}),
+      helper: JobHelper.fromJson(json['helper'] as Map<String, dynamic>? ?? {}),
+      location: JobLocation.fromJson(json['location'] as Map<String, dynamic>? ?? {}),
+      payment: JobPayment.fromJson(json['payment'] as Map<String, dynamic>? ?? {}),
+      payout: JobPayout.fromJson(json['payout'] as Map<String, dynamic>? ?? {}),
+      timeline: JobTimeline.fromJson(json['timeline'] as Map<String, dynamic>? ?? {}),
     );
   }
 
+  // Compatibility getters for existing UI
+  int get bookingId => id;
+  String get customerName => customer.name;
+  String get serviceName => services.isNotEmpty ? services.first.name : '—';
+  String get serviceType => category.name;
+  String get helperName => helper.name;
+  double get helperRating => helper.rating;
+  String get dayLabel => date;
+  String get timeLabel => time;
+  String get durationLabel => duration;
+  String get address => location.full;
+  double? get latitude => location.latitude;
+  double? get longitude => location.longitude;
+  num get finalAmount => payment.amount;
+  String get amountLabel => '₹${payment.amount.toInt()}';
+  String get jobStatus => status;
+
   String get displaySchedule {
-    final parts = <String>[];
-    if (dayLabel.trim().isNotEmpty) parts.add(dayLabel.trim());
-    if (timeLabel.trim().isNotEmpty) parts.add(timeLabel.trim());
-    return parts.isEmpty ? '—' : parts.join(' • ');
+    return '$date • $time';
   }
 
-  String get displayDuration {
-    if (durationLabel.trim().isNotEmpty) return durationLabel;
-    return duration > 0 ? '$duration hours' : '—';
-  }
+  String get displayDuration => duration;
 
-  String get displayAmount {
-    if (amountLabel.trim().isNotEmpty) return amountLabel;
-    if (finalAmount % 1 == 0) return '₹${finalAmount.toInt()}';
-    return '₹${finalAmount.toStringAsFixed(2)}';
-  }
+  String get displayAmount => amountLabel;
 
   String get displayRating {
     return helperRating % 1 == 0
@@ -93,39 +86,238 @@ class UpcomingJobModel {
   }
 }
 
+class JobCategory {
+  const JobCategory({
+    required this.id,
+    required this.name,
+  });
+
+  final int id;
+  final String name;
+
+  factory JobCategory.fromJson(Map<String, dynamic> json) {
+    return JobCategory(
+      id: _toInt(json['id']),
+      name: _toString(json['name'], fallback: 'Service'),
+    );
+  }
+}
+
+class JobService {
+  const JobService({
+    required this.id,
+    required this.name,
+    required this.price,
+    required this.quantity,
+  });
+
+  final int id;
+  final String name;
+  final num price;
+  final int quantity;
+
+  factory JobService.fromJson(Map<String, dynamic> json) {
+    return JobService(
+      id: _toInt(json['id']),
+      name: _toString(json['name']),
+      price: _toNum(json['price']),
+      quantity: _toInt(json['quantity']),
+    );
+  }
+}
+
+class JobCustomer {
+  const JobCustomer({
+    required this.id,
+    required this.name,
+    required this.phone,
+  });
+
+  final int id;
+  final String name;
+  final String phone;
+
+  factory JobCustomer.fromJson(Map<String, dynamic> json) {
+    return JobCustomer(
+      id: _toInt(json['id']),
+      name: _toString(json['name'], fallback: 'Customer'),
+      phone: _toString(json['phone']),
+    );
+  }
+}
+
+class JobHelper {
+  const JobHelper({
+    required this.id,
+    required this.name,
+    required this.rating,
+  });
+
+  final int id;
+  final String name;
+  final double rating;
+
+  factory JobHelper.fromJson(Map<String, dynamic> json) {
+    return JobHelper(
+      id: _toInt(json['id']),
+      name: _toString(json['name'], fallback: 'Helper Assigned'),
+      rating: _toDouble(json['rating']),
+    );
+  }
+}
+
+class JobLocation {
+  const JobLocation({
+    required this.full,
+    required this.short,
+    required this.latitude,
+    required this.longitude,
+  });
+
+  final String full;
+  final String short;
+  final double? latitude;
+  final double? longitude;
+
+  factory JobLocation.fromJson(Map<String, dynamic> json) {
+    return JobLocation(
+      full: _toString(json['full'], fallback: '—'),
+      short: _toString(json['short'], fallback: '—'),
+      latitude: _toNullableDouble(json['latitude']),
+      longitude: _toNullableDouble(json['longitude']),
+    );
+  }
+}
+
+class JobPayment {
+  const JobPayment({
+    required this.amount,
+    required this.status,
+    required this.method,
+    required this.paymentId,
+    required this.orderId,
+    required this.isPaid,
+  });
+
+  final num amount;
+  final String status;
+  final String method;
+  final String? paymentId;
+  final String orderId;
+  final bool isPaid;
+
+  factory JobPayment.fromJson(Map<String, dynamic> json) {
+    return JobPayment(
+      amount: _toNum(json['amount']),
+      status: _toString(json['status'], fallback: 'PENDING'),
+      method: _toString(json['method']),
+      paymentId: json['paymentId']?.toString(),
+      orderId: _toString(json['orderId']),
+      isPaid: json['isPaid'] == true,
+    );
+  }
+}
+
+class JobPayout {
+  const JobPayout({
+    required this.status,
+    required this.amount,
+    required this.commission,
+  });
+
+  final String status;
+  final num amount;
+  final num commission;
+
+  factory JobPayout.fromJson(Map<String, dynamic> json) {
+    return JobPayout(
+      status: _toString(json['status'], fallback: 'PENDING'),
+      amount: _toNum(json['amount']),
+      commission: _toNum(json['commission']),
+    );
+  }
+}
+
+class JobTimeline {
+  const JobTimeline({
+    required this.createdAt,
+    required this.scheduledAt,
+    required this.startedAt,
+    required this.completedAt,
+    required this.cancelledAt,
+  });
+
+  final String? createdAt;
+  final String? scheduledAt;
+  final String? startedAt;
+  final String? completedAt;
+  final String? cancelledAt;
+
+  factory JobTimeline.fromJson(Map<String, dynamic> json) {
+    return JobTimeline(
+      createdAt: json['createdAt']?.toString(),
+      scheduledAt: json['scheduledAt']?.toString(),
+      startedAt: json['startedAt']?.toString(),
+      completedAt: json['completedAt']?.toString(),
+      cancelledAt: json['cancelledAt']?.toString(),
+    );
+  }
+}
+
 class UpcomingJobsApiResponse {
   const UpcomingJobsApiResponse({
     required this.success,
     required this.jobs,
-    required this.totalUpcomingJobs,
-    required this.todayJobsCount,
+    required this.pagination,
     required this.message,
   });
 
   final bool success;
   final List<UpcomingJobModel> jobs;
-  final int totalUpcomingJobs;
-  final int todayJobsCount;
+  final PaginationInfo pagination;
   final String? message;
 
+  // Compatibility getters
+  int get totalUpcomingJobs => pagination.total;
+  int get todayJobsCount => 0; // Not in new API, can be added if needed
+
   factory UpcomingJobsApiResponse.fromJson(Map<String, dynamic> json) {
-    final rawList =
-        (json['data'] as List<dynamic>?) ??
-        (json['bookings'] as List<dynamic>?) ??
-        const <dynamic>[];
+    final rawList = (json['data'] as List<dynamic>?) ?? const <dynamic>[];
     final parsedJobs = rawList
         .whereType<Map<String, dynamic>>()
         .map(UpcomingJobModel.fromJson)
         .toList();
 
+    final paginationData = json['pagination'] as Map<String, dynamic>? ?? {};
+
     return UpcomingJobsApiResponse(
       success: json['success'] == true,
       jobs: parsedJobs,
-      totalUpcomingJobs: _toInt(json['totalUpcomingJobs']) > 0
-          ? _toInt(json['totalUpcomingJobs'])
-          : parsedJobs.length,
-      todayJobsCount: _toInt(json['todayJobsCount']),
+      pagination: PaginationInfo.fromJson(paginationData),
       message: json['message']?.toString(),
+    );
+  }
+}
+
+class PaginationInfo {
+  const PaginationInfo({
+    required this.page,
+    required this.limit,
+    required this.total,
+    required this.totalPages,
+  });
+
+  final int page;
+  final int limit;
+  final int total;
+  final int totalPages;
+
+  factory PaginationInfo.fromJson(Map<String, dynamic> json) {
+    return PaginationInfo(
+      page: _toInt(json['page']),
+      limit: _toInt(json['limit']),
+      total: _toInt(json['total']),
+      totalPages: _toInt(json['totalPages']),
     );
   }
 }
@@ -134,6 +326,14 @@ String _toString(dynamic value, {String fallback = ''}) {
   if (value == null) return fallback;
   final text = value.toString();
   return text.trim().isEmpty ? fallback : text;
+}
+
+List<JobService> _parseServices(dynamic value) {
+  if (value is! List<dynamic>) return const <JobService>[];
+  return value
+      .whereType<Map<String, dynamic>>()
+      .map(JobService.fromJson)
+      .toList();
 }
 
 int _toInt(dynamic value) {
