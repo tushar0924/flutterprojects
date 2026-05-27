@@ -57,7 +57,11 @@ class _CustomerOtpScreenState extends State<CustomerOtpScreen> {
         titleSpacing: 0,
         title: const Text(
           'Enter OTP',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.white),
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: Colors.white,
+          ),
         ),
       ),
       body: SingleChildScrollView(
@@ -66,13 +70,21 @@ class _CustomerOtpScreenState extends State<CustomerOtpScreen> {
           children: [
             const Text(
               'Verify Customer OTP',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFF101828)),
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF101828),
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
               'Ask Anjali Verma for the verification code\nsent to their phone',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Color(0xFF344054), height: 1.35),
+              style: TextStyle(
+                fontSize: 14,
+                color: Color(0xFF344054),
+                height: 1.35,
+              ),
             ),
             const SizedBox(height: 38),
             Row(
@@ -86,17 +98,24 @@ class _CustomerOtpScreenState extends State<CustomerOtpScreen> {
               child: ElevatedButton(
                 onPressed: () {
                   Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const BeforeWorkPhotoScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => const BeforeWorkPhotoScreen(bookingId: 0),
+                    ),
                   );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: navyBlue,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 child: const Text(
                   'Verify OTP',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -118,7 +137,11 @@ class _CustomerOtpScreenState extends State<CustomerOtpScreen> {
         textAlign: TextAlign.center,
         keyboardType: TextInputType.number,
         maxLength: 1,
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF0D1F33)),
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF0D1F33),
+        ),
         decoration: InputDecoration(
           counterText: '',
           filled: true,
@@ -160,29 +183,49 @@ class _CustomerOtpScreenState extends State<CustomerOtpScreen> {
               SizedBox(width: 6),
               Text(
                 'Important',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0D1F33)),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0D1F33),
+                ),
               ),
             ],
           ),
           SizedBox(height: 8),
           Text(
             '• Customer will provide you the 6-digit OTP.',
-            style: TextStyle(fontSize: 10, color: Color(0xFF175CD3), height: 1.4),
+            style: TextStyle(
+              fontSize: 10,
+              color: Color(0xFF175CD3),
+              height: 1.4,
+            ),
           ),
           SizedBox(height: 4),
           Text(
             '• Timer will start immediately after verification.',
-            style: TextStyle(fontSize: 10, color: Color(0xFF175CD3), height: 1.4),
+            style: TextStyle(
+              fontSize: 10,
+              color: Color(0xFF175CD3),
+              height: 1.4,
+            ),
           ),
           SizedBox(height: 4),
           Text(
             '• You can pause the timer once started.',
-            style: TextStyle(fontSize: 10, color: Color(0xFF175CD3), height: 1.4),
+            style: TextStyle(
+              fontSize: 10,
+              color: Color(0xFF175CD3),
+              height: 1.4,
+            ),
           ),
           SizedBox(height: 4),
           Text(
             '• Complete the work within allocated time.',
-            style: TextStyle(fontSize: 10, color: Color(0xFF175CD3), height: 1.4),
+            style: TextStyle(
+              fontSize: 10,
+              color: Color(0xFF175CD3),
+              height: 1.4,
+            ),
           ),
         ],
       ),

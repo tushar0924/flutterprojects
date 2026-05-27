@@ -5,7 +5,9 @@ import 'package:image_picker/image_picker.dart';
 import 'job_completed_popup.dart';
 
 class JobInProgressScreen extends StatefulWidget {
-  const JobInProgressScreen({super.key});
+  const JobInProgressScreen({super.key, required this.bookingId});
+
+  final int bookingId;
 
   @override
   State<JobInProgressScreen> createState() => _JobInProgressScreenState();
@@ -80,10 +82,18 @@ class _JobInProgressScreenState extends State<JobInProgressScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Job In Progress',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500)),
-            Text('BKG_1765279069209',
-                style: TextStyle(color: Colors.white70, fontSize: 11)),
+            const Text(
+              'Job In Progress',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Text(
+              'BKG_1765279069209',
+              style: TextStyle(color: Colors.white70, fontSize: 11),
+            ),
           ],
         ),
         actions: const [
@@ -113,12 +123,20 @@ class _JobInProgressScreenState extends State<JobInProgressScreen> {
         child: ElevatedButton.icon(
           onPressed: () => showJobCompletedPopup(context),
           icon: const Icon(Icons.check_circle_outline, color: Colors.white),
-          label: const Text('Mark Job as Done',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+          label: const Text(
+            'Mark Job as Done',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF00C853),
             minimumSize: const Size(double.infinity, 54),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
         ),
       ),
@@ -135,7 +153,10 @@ class _JobInProgressScreenState extends State<JobInProgressScreen> {
       ),
       child: Column(
         children: [
-          const Text('Time Remaining', style: TextStyle(color: Colors.white70, fontSize: 13)),
+          const Text(
+            'Time Remaining',
+            style: TextStyle(color: Colors.white70, fontSize: 13),
+          ),
           const SizedBox(height: 8),
           Text(
             _formatDuration(_remaining),
@@ -153,15 +174,23 @@ class _JobInProgressScreenState extends State<JobInProgressScreen> {
               value: 0.8, // Static high progress to match image
               minHeight: 8,
               backgroundColor: Colors.white.withValues(alpha: 0.1),
-              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF00C853)),
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                Color(0xFF00C853),
+              ),
             ),
           ),
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: const [
-              Text('Started: 10:00 AM', style: TextStyle(color: Colors.white70, fontSize: 12)),
-              Text('Target: 12:00 PM', style: TextStyle(color: Colors.white70, fontSize: 12)),
+              Text(
+                'Started: 10:00 AM',
+                style: TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+              Text(
+                'Target: 12:00 PM',
+                style: TextStyle(color: Colors.white70, fontSize: 12),
+              ),
             ],
           ),
         ],
@@ -177,13 +206,20 @@ class _JobInProgressScreenState extends State<JobInProgressScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: const [
-              Text('Upload After Work Photo',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-              Text('Min 5 photos', style: TextStyle(fontSize: 11, color: Colors.grey)),
+              Text(
+                'Upload After Work Photo',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+              Text(
+                'Min 5 photos',
+                style: TextStyle(fontSize: 11, color: Colors.grey),
+              ),
             ],
           ),
-          const Text('Capture photos showing the work done.',
-              style: TextStyle(fontSize: 12, color: Colors.grey)),
+          const Text(
+            'Capture photos showing the work done.',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
           const SizedBox(height: 20),
 
           // Image Grid
@@ -225,7 +261,10 @@ class _JobInProgressScreenState extends State<JobInProgressScreen> {
             onTap: () => _removeImage(index),
             child: Container(
               padding: const EdgeInsets.all(2),
-              decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+              decoration: const BoxDecoration(
+                color: Colors.black54,
+                shape: BoxShape.circle,
+              ),
               child: const Icon(Icons.close, size: 14, color: Colors.white),
             ),
           ),
@@ -236,9 +275,18 @@ class _JobInProgressScreenState extends State<JobInProgressScreen> {
           right: 4,
           child: Container(
             padding: const EdgeInsets.all(6),
-            decoration: const BoxDecoration(color: Color(0xFF00C853), shape: BoxShape.circle),
-            child: Text('${index + 1}',
-                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+            decoration: const BoxDecoration(
+              color: Color(0xFF00C853),
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              '${index + 1}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ),
       ],
@@ -260,7 +308,10 @@ class _JobInProgressScreenState extends State<JobInProgressScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: const [
             Icon(Icons.add, color: Color(0xFF64748B), size: 32),
-            Text('Add Photo', style: TextStyle(color: Color(0xFF64748B), fontSize: 11)),
+            Text(
+              'Add Photo',
+              style: TextStyle(color: Color(0xFF64748B), fontSize: 11),
+            ),
           ],
         ),
       ),
@@ -276,7 +327,10 @@ class _JobInProgressScreenState extends State<JobInProgressScreen> {
             children: const [
               Icon(Icons.person_outline, size: 18, color: Colors.grey),
               SizedBox(width: 8),
-              Text('Customer Details', style: TextStyle(fontWeight: FontWeight.bold)),
+              Text(
+                'Customer Details',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -291,11 +345,20 @@ class _JobInProgressScreenState extends State<JobInProgressScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Priya Sharma', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                    Text(
+                      'Priya Sharma',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
                     Row(
                       children: [
                         Icon(Icons.star, color: Colors.orange, size: 14),
-                        Text(' 4.8', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                        Text(
+                          ' 4.8',
+                          style: TextStyle(color: Colors.grey, fontSize: 13),
+                        ),
                       ],
                     ),
                   ],
@@ -316,15 +379,31 @@ class _JobInProgressScreenState extends State<JobInProgressScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Maid Service', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const Text('Booking ID: 1762415711831', style: TextStyle(color: Colors.grey, fontSize: 12)),
-          const Text('Jhadu, Pocha aur Bartan', style: TextStyle(fontSize: 14, color: Colors.black87)),
-          const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider()),
+          const Text(
+            'Maid Service',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const Text(
+            'Booking ID: 1762415711831',
+            style: TextStyle(color: Colors.grey, fontSize: 12),
+          ),
+          const Text(
+            'Jhadu, Pocha aur Bartan',
+            style: TextStyle(fontSize: 14, color: Colors.black87),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Divider(),
+          ),
           _infoRow(Icons.calendar_today, 'Date', 'Thursday, November 6, 2025'),
           const SizedBox(height: 12),
           _infoRow(Icons.access_time, 'Time & Duration', '06:00 AM • 8 hours'),
           const SizedBox(height: 12),
-          _infoRow(Icons.location_on_outlined, 'Service Location', 'Location...\nJaipur, India'),
+          _infoRow(
+            Icons.location_on_outlined,
+            'Service Location',
+            'Location...\nJaipur, India',
+          ),
         ],
       ),
     );
@@ -339,8 +418,14 @@ class _JobInProgressScreenState extends State<JobInProgressScreen> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+            Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+            ),
           ],
         ),
       ],
@@ -373,7 +458,20 @@ class _JobInProgressScreenState extends State<JobInProgressScreen> {
 class PositionBy extends StatelessWidget {
   final double? top, right, bottom, left;
   final Widget child;
-  const PositionBy({this.top, this.right, this.bottom, this.left, required this.child, super.key});
+  const PositionBy({
+    this.top,
+    this.right,
+    this.bottom,
+    this.left,
+    required this.child,
+    super.key,
+  });
   @override
-  Widget build(BuildContext context) => Positioned(top: top, right: right, bottom: bottom, left: left, child: child);
+  Widget build(BuildContext context) => Positioned(
+    top: top,
+    right: right,
+    bottom: bottom,
+    left: left,
+    child: child,
+  );
 }

@@ -1,7 +1,7 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:socket_io_client/socket_io_client.dart' as io;
 
 import '../../models/booking_alert_model.dart';
 import '../../network/api_endpoint.dart';
@@ -16,6 +16,7 @@ class BookingSocketState {
     this.activeBooking,
     this.message,
     this.lastAcceptedBookingId,
+    this.lastPaymentConfirmation,
   });
 
   final bool isConnecting;
@@ -23,6 +24,7 @@ class BookingSocketState {
   final BookingAlertModel? activeBooking;
   final String? message;
   final int? lastAcceptedBookingId;
+  final PaymentConfirmationEvent? lastPaymentConfirmation;
 
   BookingSocketState copyWith({
     bool? isConnecting,
@@ -32,6 +34,7 @@ class BookingSocketState {
     String? message,
     bool clearMessage = false,
     int? lastAcceptedBookingId,
+    PaymentConfirmationEvent? lastPaymentConfirmation,
   }) {
     return BookingSocketState(
       isConnecting: isConnecting ?? this.isConnecting,
@@ -42,6 +45,41 @@ class BookingSocketState {
       message: clearMessage ? null : (message ?? this.message),
       lastAcceptedBookingId:
           lastAcceptedBookingId ?? this.lastAcceptedBookingId,
+      lastPaymentConfirmation:
+          lastPaymentConfirmation ?? this.lastPaymentConfirmation,
+    );
+  }
+}
+
+class PaymentConfirmationEvent {
+  const PaymentConfirmationEvent({
+    required this.bookingId,
+    required this.paymentId,
+    required this.status,
+    required this.amount,
+    required this.method,
+    required this.receivedAt,
+  });
+
+  final int bookingId;
+  final int paymentId;
+  final String status;
+  final num amount;
+  final String method;
+  final DateTime receivedAt;
+
+  String get eventKey =>
+      '$bookingId-$paymentId-${receivedAt.microsecondsSinceEpoch}';
+
+  factory PaymentConfirmationEvent.fromSocketPayload(dynamic data) {
+    final map = _socketPayloadToMap(data);
+    return PaymentConfirmationEvent(
+      bookingId: _socketToInt(map['bookingId'] ?? map['booking_id']),
+      paymentId: _socketToInt(map['paymentId'] ?? map['payment_id']),
+      status: _socketToString(map['status']),
+      amount: _socketToNum(map['amount']),
+      method: _socketToString(map['method']),
+      receivedAt: DateTime.now(),
     );
   }
 }
@@ -52,7 +90,7 @@ class BookingSocketNotifier extends StateNotifier<BookingSocketState> {
   final Ref _ref;
   final SessionManager _session = SessionManager();
   final AudioPlayer _audioPlayer = AudioPlayer();
-  IO.Socket? _socket;
+  io.Socket? _socket;
   bool _started = false;
   int? _lastNewBookingRequestId;
   DateTime? _lastNewBookingAt;
@@ -90,9 +128,9 @@ class BookingSocketNotifier extends StateNotifier<BookingSocketState> {
     _disconnect();
     state = state.copyWith(isConnecting: true, clearMessage: true);
 
-    final socket = IO.io(
+    final socket = io.io(
       ApiEndpoint.socketUrl,
-      IO.OptionBuilder()
+      io.OptionBuilder()
           .setTransports(['websocket'])
           .setAuth(<String, dynamic>{'token': 'Bearer $token'})
           .disableAutoConnect()
@@ -127,6 +165,7 @@ class BookingSocketNotifier extends StateNotifier<BookingSocketState> {
     });
 
     socket.on('booking:new', _handleNewBooking);
+    socket.on('payment:confirmed', _handlePaymentConfirmed);
     socket.on(
       'booking:closed',
       (data) =>
@@ -152,6 +191,7 @@ class BookingSocketNotifier extends StateNotifier<BookingSocketState> {
     _socket = null;
     if (socket == null) return;
     socket.off('booking:new');
+    socket.off('payment:confirmed');
     socket.off('booking:closed');
     socket.off('booking:expired');
     socket.off('booking:alreadyAccepted');
@@ -208,10 +248,23 @@ class BookingSocketNotifier extends StateNotifier<BookingSocketState> {
     _lastNewBookingAt = now;
 
     state = state.copyWith(activeBooking: booking, clearMessage: true);
-    
+
     // Play sound asynchronously without blocking
     _playAlertSound().ignore();
     HapticFeedback.heavyImpact();
+  }
+
+  void _handlePaymentConfirmed(dynamic data) {
+    final event = PaymentConfirmationEvent.fromSocketPayload(data);
+    if (event.bookingId <= 0) {
+      state = state.copyWith(message: 'Received an invalid payment payload');
+      return;
+    }
+
+    state = state.copyWith(
+      lastPaymentConfirmation: event,
+      message: 'Payment confirmed',
+    );
   }
 
   void _handleBookingClosedEvent(dynamic data, String message) {
@@ -227,9 +280,7 @@ class BookingSocketNotifier extends StateNotifier<BookingSocketState> {
       return;
     }
 
-    if (activeRequestId != null &&
-        eventRequestId != null &&
-        eventRequestId != activeRequestId) {
+    if (eventRequestId != null && eventRequestId != activeRequestId) {
       return;
     }
 
@@ -348,6 +399,28 @@ class BookingSocketNotifier extends StateNotifier<BookingSocketState> {
     if (booking == null || booking.requestId != requestId) return;
     state = state.copyWith(clearActiveBooking: true, clearMessage: true);
   }
+}
+
+Map<String, dynamic> _socketPayloadToMap(dynamic value) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) return Map<String, dynamic>.from(value);
+  return <String, dynamic>{};
+}
+
+String _socketToString(dynamic value) {
+  if (value == null) return '';
+  return value.toString().trim();
+}
+
+int _socketToInt(dynamic value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+num _socketToNum(dynamic value) {
+  if (value is num) return value;
+  return num.tryParse(value?.toString() ?? '') ?? 0;
 }
 
 final bookingRequestActionsRepositoryProvider =

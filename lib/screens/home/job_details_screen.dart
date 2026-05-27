@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/booking_details_model.dart';
+import '../../providers/booking_socket_provider.dart';
 import '../../repositories/booking_details_repository.dart';
+import 'payment_received_job_details_screen.dart';
 
 class JobDetailsScreen extends ConsumerStatefulWidget {
   const JobDetailsScreen({super.key, required this.bookingId});
@@ -16,17 +18,50 @@ class JobDetailsScreen extends ConsumerStatefulWidget {
 class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
   BookingDetailsModel? _booking;
   bool _isLoading = true;
+  bool _isRedirectingForPayment = false;
   String? _errorMessage;
+  String? _handledPaymentEventKey;
+  ProviderSubscription<BookingSocketState>? _bookingSocketSubscription;
 
   @override
   void initState() {
     super.initState();
     _fetchBookingDetails();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(bookingSocketProvider.notifier).start();
+      _bookingSocketSubscription = ref.listenManual<BookingSocketState>(
+        bookingSocketProvider,
+        _onBookingSocketStateChanged,
+      );
+      _handlePaymentConfirmation(ref.read(bookingSocketProvider));
+    });
   }
 
   @override
   void dispose() {
+    _bookingSocketSubscription?.close();
     super.dispose();
+  }
+
+  void _onBookingSocketStateChanged(
+    BookingSocketState? previous,
+    BookingSocketState next,
+  ) {
+    if (previous?.lastPaymentConfirmation?.eventKey ==
+        next.lastPaymentConfirmation?.eventKey) {
+      return;
+    }
+
+    _handlePaymentConfirmation(next);
+  }
+
+  void _handlePaymentConfirmation(BookingSocketState state) {
+    final event = state.lastPaymentConfirmation;
+    if (event == null || event.bookingId != widget.bookingId) return;
+    if (_handledPaymentEventKey == event.eventKey) return;
+
+    _handledPaymentEventKey = event.eventKey;
+    _redirectToPaymentReceived();
   }
 
   Future<void> _fetchBookingDetails() async {
@@ -42,15 +77,60 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
         _errorMessage = 'Failed to load booking details';
       }
     });
+  }
 
+  Future<void> _redirectToPaymentReceived() async {
+    if (_isRedirectingForPayment) return;
+    _isRedirectingForPayment = true;
+
+    final booking = await _loadConfirmedBookingForRedirect();
+    if (!mounted) return;
+
+    if (booking == null) {
+      _isRedirectingForPayment = false;
+      return;
+    }
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => PaymentReceivedJobDetailsScreen(booking: booking),
+      ),
+    );
+  }
+
+  Future<BookingDetailsModel?> _loadConfirmedBookingForRedirect() async {
+    final repository = ref.read(bookingDetailsRepositoryProvider);
+
+    for (var attempt = 0; attempt < 5; attempt++) {
+      final booking = await repository.getBookingDetails(widget.bookingId);
+      if (!mounted) return null;
+
+      if (booking != null) {
+        setState(() {
+          _booking = booking;
+          _isLoading = false;
+          _errorMessage = null;
+        });
+
+        if (!booking.isPaymentPending) {
+          return booking;
+        }
+      }
+
+      await Future.delayed(const Duration(milliseconds: 700));
+    }
+
+    final booking = _booking;
+    if (booking != null && !booking.isPaymentPending) {
+      return booking;
+    }
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (_errorMessage != null || _booking == null) {
@@ -76,8 +156,8 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
     final statusLabel = booking.displayBadge.text.isNotEmpty
         ? booking.displayBadge.text
         : booking.displayState.isNotEmpty
-            ? booking.displayState
-            : booking.status;
+        ? booking.displayState
+        : booking.status;
     final canShowActions = booking.actions.canStart;
 
     return Scaffold(
@@ -231,7 +311,8 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
                   if (!booking.contactUnlocked) ...[
                     const SizedBox(height: 12),
                     const _LockedActionCard(
-                      text: 'Contact to customer will be available after payment',
+                      text:
+                          'Contact to customer will be available after payment',
                     ),
                   ],
                 ],
@@ -321,11 +402,7 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
                     booking.date,
                     icon: Icons.calendar_today_outlined,
                   ),
-                  _infoRow(
-                    'Time',
-                    booking.time,
-                    icon: Icons.access_time,
-                  ),
+                  _infoRow('Time', booking.time, icon: Icons.access_time),
                   _infoRow(
                     'Total Duration',
                     booking.durationLabel,
@@ -363,16 +440,14 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
         ),
       ),
       bottomSheet: canShowActions
-          ? _ActionButtons(
-              canStart: booking.actions.canStart,
-            )
+          ? _ActionButtons(canStart: booking.actions.canStart)
           : null,
     );
   }
 
   Widget _buildStatusHeader(String statusLabel, BookingDetailsModel booking) {
     if (booking.isPaymentPending) {
-        final waitingText = booking.paymentWaiting.remainingMinutes > 0
+      final waitingText = booking.paymentWaiting.remainingMinutes > 0
           ? 'Waiting time: ${booking.paymentWaiting.remainingMinutes} minutes'
           : 'Waiting time: 00 minutes';
 
@@ -444,11 +519,7 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
           CircleAvatar(
             radius: 18,
             backgroundColor: _getStatusColor(booking),
-            child: Icon(
-              _getStatusIcon(booking),
-              color: Colors.white,
-              size: 20,
-            ),
+            child: Icon(_getStatusIcon(booking), color: Colors.white, size: 20),
           ),
           const SizedBox(width: 12),
           Column(
@@ -520,8 +591,13 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
       context: context,
       builder: (context) {
         return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 24,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           child: Container(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
             decoration: BoxDecoration(
@@ -544,7 +620,11 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close, size: 18, color: Color(0xFF667085)),
+                      icon: const Icon(
+                        Icons.close,
+                        size: 18,
+                        color: Color(0xFF667085),
+                      ),
                       onPressed: () => Navigator.of(context).pop(),
                     ),
                   ],
@@ -651,10 +731,7 @@ class _PendingPaymentCard extends StatelessWidget {
                 SizedBox(height: 4),
                 Text(
                   'The remaining information will be shown when the customer makes the payment.',
-                  style: TextStyle(
-                    color: Color(0xFF9A3412),
-                    fontSize: 11,
-                  ),
+                  style: TextStyle(color: Color(0xFF9A3412), fontSize: 11),
                 ),
               ],
             ),
@@ -670,13 +747,11 @@ class _SectionContainer extends StatelessWidget {
     required this.title,
     required this.icon,
     required this.child,
-    this.trailing,
   });
 
   final String title;
   final IconData icon;
   final Widget child;
-  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -705,7 +780,6 @@ class _SectionContainer extends StatelessWidget {
                   ),
                 ),
               ),
-              if (trailing != null) trailing!,
             ],
           ),
           const SizedBox(height: 10),
@@ -733,28 +807,8 @@ class _LockedActionCard extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: const TextStyle(
-          color: Color(0xFF64748B),
-          fontSize: 11,
-        ),
+        style: const TextStyle(color: Color(0xFF64748B), fontSize: 11),
       ),
-    );
-  }
-}
-
-class _CircleIconButton extends StatelessWidget {
-  const _CircleIconButton({required this.icon, required this.bgColor});
-
-  final IconData icon;
-  final Color bgColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
-      child: Icon(icon, color: Colors.white, size: 18),
     );
   }
 }
@@ -828,9 +882,16 @@ class _ImportantInfoCard extends StatelessWidget {
             ),
           ),
           SizedBox(height: 8),
-          _InfoBullet(text: 'Customer is currently completing the payment process'),
-          _InfoBullet(text: 'Complete job details including contact information will be available after payment confirmation'),
-          _InfoBullet(text: 'You will receive a notification once payment is completed'),
+          _InfoBullet(
+            text: 'Customer is currently completing the payment process',
+          ),
+          _InfoBullet(
+            text:
+                'Complete job details including contact information will be available after payment confirmation',
+          ),
+          _InfoBullet(
+            text: 'You will receive a notification once payment is completed',
+          ),
           _InfoBullet(text: 'Please be ready to start the job as scheduled'),
         ],
       ),
@@ -922,7 +983,9 @@ class _ServiceDetailCardState extends State<_ServiceDetailCard> {
                   ),
                 ),
                 Icon(
-                  _expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                  _expanded
+                      ? Icons.keyboard_arrow_up
+                      : Icons.keyboard_arrow_down,
                   color: const Color(0xFF2563EB),
                   size: 20,
                 ),
@@ -977,7 +1040,10 @@ class _ServiceDetailCardState extends State<_ServiceDetailCard> {
           children: items
               .map(
                 (text) => Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: background,
                     borderRadius: BorderRadius.circular(20),

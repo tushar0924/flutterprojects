@@ -57,9 +57,9 @@ class BookingDetailsModel {
       time: _toString(json['time']),
       durationLabel: _toString(json['durationLabel']),
       category: BookingCategory.fromJson(_toMap(json['category'])),
-      services: _toListOfMaps(json['services'])
-          .map(BookingService.fromJson)
-          .toList(),
+      services: _toListOfMaps(
+        json['services'],
+      ).map(BookingService.fromJson).toList(),
       customer: BookingCustomer.fromJson(_toMap(json['customer'])),
       helper: BookingHelper.fromJson(_toMap(json['helper'])),
       location: BookingLocation.fromJson(_toMap(json['location'])),
@@ -79,8 +79,13 @@ class BookingDetailsModel {
   }
 
   bool get isPaymentPending {
-    return status.toUpperCase() == 'PENDING_PAYMENT' ||
-        displayState.toUpperCase().contains('PAYMENT');
+    final normalizedStatus = status.toUpperCase();
+    final normalizedJobState = jobState.toUpperCase();
+    final normalizedDisplayState = displayState.toUpperCase();
+
+    return normalizedStatus == 'PENDING_PAYMENT' ||
+        normalizedJobState == 'PAYMENT_PENDING' ||
+        normalizedDisplayState == 'PAYMENT_PENDING';
   }
 }
 

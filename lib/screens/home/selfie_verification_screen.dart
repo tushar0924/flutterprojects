@@ -3,14 +3,17 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'customer_otp_screen.dart';
+import 'before_work_photo_screen.dart';
 import '../../utils/toast_helper.dart';
 
 class SelfieVerificationScreen extends StatefulWidget {
-  const SelfieVerificationScreen({super.key});
+  const SelfieVerificationScreen({super.key, required this.bookingId});
+
+  final int bookingId;
 
   @override
-  State<SelfieVerificationScreen> createState() => _SelfieVerificationScreenState();
+  State<SelfieVerificationScreen> createState() =>
+      _SelfieVerificationScreenState();
 }
 
 class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
@@ -129,7 +132,9 @@ class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
 
   Future<void> _captureSelfie() async {
     final controller = _cameraController;
-    if (controller == null || !controller.value.isInitialized || _isCapturing) return;
+    if (controller == null || !controller.value.isInitialized || _isCapturing) {
+      return;
+    }
 
     setState(() => _isCapturing = true);
     try {
@@ -160,12 +165,11 @@ class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
 
     setState(() => _isVerified = true);
     _redirectTimer?.cancel();
-    _redirectTimer = Timer(const Duration(seconds: 3), () {
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const CustomerOtpScreen()),
-      );
-    });
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => BeforeWorkPhotoScreen(bookingId: widget.bookingId),
+      ),
+    );
   }
 
   @override
@@ -184,7 +188,11 @@ class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
         titleSpacing: 0,
         title: const Text(
           'Selfie Verification',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
         ),
       ),
       body: SingleChildScrollView(
@@ -214,39 +222,39 @@ class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
       ),
       clipBehavior: Clip.hardEdge,
       child: _capturedSelfie != null
-          ? Image.file(
-              File(_capturedSelfie!.path),
-              fit: BoxFit.cover,
-            )
+          ? Image.file(File(_capturedSelfie!.path), fit: BoxFit.cover)
           : _cameraError != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text(
-                      _cameraError!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white70, fontSize: 13),
-                    ),
-                  ),
-                )
-              : (controller == null || !controller.value.isInitialized)
-                  ? const Center(
-                      child: SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white70),
-                      ),
-                    )
-                  : SizedBox.expand(
-                      child: FittedBox(
-                        fit: BoxFit.cover,
-                        child: SizedBox(
-                          width: controller.value.previewSize!.height,
-                          height: controller.value.previewSize!.width,
-                          child: CameraPreview(controller),
-                        ),
-                      ),
-                    ),
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  _cameraError!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+              ),
+            )
+          : (controller == null || !controller.value.isInitialized)
+          ? const Center(
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white70,
+                ),
+              ),
+            )
+          : SizedBox.expand(
+              child: FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: controller.value.previewSize!.height,
+                  height: controller.value.previewSize!.width,
+                  child: CameraPreview(controller),
+                ),
+              ),
+            ),
     );
   }
 
@@ -263,11 +271,16 @@ class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
           style: OutlinedButton.styleFrom(
             minimumSize: const Size.fromHeight(40),
             side: const BorderSide(color: Color(0xFF98A2B3)),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(6),
+            ),
           ),
           child: Text(
             _isPermissionPermanentlyDenied ? 'Open Settings' : 'Retry Camera',
-            style: const TextStyle(color: Color(0xFF0D1F33), fontWeight: FontWeight.w600),
+            style: const TextStyle(
+              color: Color(0xFF0D1F33),
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       );
@@ -277,16 +290,27 @@ class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
       return SizedBox(
         width: 220,
         child: ElevatedButton.icon(
-          onPressed: _isCapturing || _cameraController == null ? null : _captureSelfie,
-          icon: const Icon(Icons.photo_camera_outlined, size: 16, color: Colors.white),
+          onPressed: _isCapturing || _cameraController == null
+              ? null
+              : _captureSelfie,
+          icon: const Icon(
+            Icons.photo_camera_outlined,
+            size: 16,
+            color: Colors.white,
+          ),
           label: Text(
             _isCapturing ? 'Capturing...' : 'Take Selfie',
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           style: ElevatedButton.styleFrom(
             minimumSize: const Size.fromHeight(40),
             backgroundColor: const Color(0xFF0D1F33),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(6),
+            ),
             elevation: 0,
           ),
         ),
@@ -301,15 +325,28 @@ class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
             onPressed: _isVerified ? null : _verifySelfie,
             style: ElevatedButton.styleFrom(
               minimumSize: const Size.fromHeight(40),
-              backgroundColor: _isVerified ? const Color(0xFF95EE9A) : const Color(0xFF0D1F33),
+              backgroundColor: _isVerified
+                  ? const Color(0xFF95EE9A)
+                  : const Color(0xFF0D1F33),
               disabledBackgroundColor: const Color(0xFF95EE9A),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+              ),
               elevation: 0,
             ),
             child: _isVerified
-                ? const Icon(Icons.check_circle_outline, color: Color(0xFF0D1F33), size: 18)
-                : const Text('Verify',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                ? const Icon(
+                    Icons.check_circle_outline,
+                    color: Color(0xFF0D1F33),
+                    size: 18,
+                  )
+                : const Text(
+                    'Verify',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
           ),
         ),
         const SizedBox(height: 10),
@@ -320,10 +357,17 @@ class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(40),
               side: const BorderSide(color: Color(0xFF98A2B3)),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+              ),
             ),
-            child: const Text('Retake Selfie',
-                style: TextStyle(color: Color(0xFF0D1F33), fontWeight: FontWeight.w500)),
+            child: const Text(
+              'Retake Selfie',
+              style: TextStyle(
+                color: Color(0xFF0D1F33),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ),
       ],
@@ -346,29 +390,51 @@ class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
             children: [
               Icon(Icons.info_outline, size: 14, color: Color(0xFF175CD3)),
               SizedBox(width: 6),
-              Text('Face Verification Instructions',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0D1F33))),
+              Text(
+                'Face Verification Instructions',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0D1F33),
+                ),
+              ),
             ],
           ),
           SizedBox(height: 8),
           Text(
             '• Keep the camera straight in front of your face. Ensure your face is fully visible (no mask, cap, or scarf).',
-            style: TextStyle(fontSize: 9.5, color: Color(0xFF175CD3), height: 1.45),
+            style: TextStyle(
+              fontSize: 9.5,
+              color: Color(0xFF175CD3),
+              height: 1.45,
+            ),
           ),
           SizedBox(height: 4),
           Text(
             '• Female partners must tie their hair properly.',
-            style: TextStyle(fontSize: 9.5, color: Color(0xFF175CD3), height: 1.45),
+            style: TextStyle(
+              fontSize: 9.5,
+              color: Color(0xFF175CD3),
+              height: 1.45,
+            ),
           ),
           SizedBox(height: 4),
           Text(
             '• Make sure the background is plain and no one else is visible.',
-            style: TextStyle(fontSize: 9.5, color: Color(0xFF175CD3), height: 1.45),
+            style: TextStyle(
+              fontSize: 9.5,
+              color: Color(0xFF175CD3),
+              height: 1.45,
+            ),
           ),
           SizedBox(height: 4),
           Text(
             '• Upload a live selfie only (no gallery photos).',
-            style: TextStyle(fontSize: 9.5, color: Color(0xFF175CD3), height: 1.45),
+            style: TextStyle(
+              fontSize: 9.5,
+              color: Color(0xFF175CD3),
+              height: 1.45,
+            ),
           ),
         ],
       ),

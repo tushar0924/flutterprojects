@@ -3,11 +3,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../../repositories/booking_details_repository.dart';
 import '../../utils/toast_helper.dart';
 import 'job_in_progress_screen.dart';
 
 class BeforeWorkPhotoScreen extends StatefulWidget {
-  const BeforeWorkPhotoScreen({super.key});
+  const BeforeWorkPhotoScreen({super.key, required this.bookingId});
+
+  final int bookingId;
 
   @override
   State<BeforeWorkPhotoScreen> createState() => _BeforeWorkPhotoScreenState();
@@ -16,6 +19,8 @@ class BeforeWorkPhotoScreen extends StatefulWidget {
 class _BeforeWorkPhotoScreenState extends State<BeforeWorkPhotoScreen> {
   final ImagePicker _picker = ImagePicker();
   final List<XFile> _photos = <XFile>[];
+  final BookingDetailsRepository _repository = BookingDetailsRepository();
+  bool _isSubmitting = false;
 
   Future<void> _showImageSourceSheet() async {
     final source = await showModalBottomSheet<ImageSource>(
@@ -79,18 +84,25 @@ class _BeforeWorkPhotoScreenState extends State<BeforeWorkPhotoScreen> {
 
     if (Platform.isAndroid) {
       try {
-        final statuses = await <Permission>[Permission.photos, Permission.storage].request();
+        final statuses = await <Permission>[
+          Permission.photos,
+          Permission.storage,
+        ].request();
         final photos = statuses[Permission.photos];
         final storage = statuses[Permission.storage];
-        final granted = (photos?.isGranted ?? false) ||
+        final granted =
+            (photos?.isGranted ?? false) ||
             (photos?.isLimited ?? false) ||
             (storage?.isGranted ?? false);
         if (granted) return true;
 
         final permanentlyDenied =
-            (photos?.isPermanentlyDenied ?? false) || (storage?.isPermanentlyDenied ?? false);
+            (photos?.isPermanentlyDenied ?? false) ||
+            (storage?.isPermanentlyDenied ?? false);
         return _handlePermissionDenied(
-          permanentlyDenied ? PermissionStatus.permanentlyDenied : PermissionStatus.denied,
+          permanentlyDenied
+              ? PermissionStatus.permanentlyDenied
+              : PermissionStatus.denied,
           'gallery',
         );
       } catch (e) {
@@ -109,7 +121,10 @@ class _BeforeWorkPhotoScreenState extends State<BeforeWorkPhotoScreen> {
     }
   }
 
-  Future<bool> _handlePermissionDenied(PermissionStatus status, String type) async {
+  Future<bool> _handlePermissionDenied(
+    PermissionStatus status,
+    String type,
+  ) async {
     if (!mounted) return false;
 
     if (status.isPermanentlyDenied) {
@@ -129,10 +144,38 @@ class _BeforeWorkPhotoScreenState extends State<BeforeWorkPhotoScreen> {
     });
   }
 
+  Future<void> _submitBeforePhotos() async {
+    if (_photos.isEmpty || _isSubmitting) return;
+
+    setState(() => _isSubmitting = true);
+    final uploaded = await _repository.uploadBeforePhotos(
+      widget.bookingId,
+      _photos,
+    );
+    if (!mounted) return;
+
+    if (!uploaded) {
+      setState(() => _isSubmitting = false);
+      return;
+    }
+
+    final timerStarted = await _repository.startBookingTimer(widget.bookingId);
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
+
+    if (!timerStarted) return;
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => JobInProgressScreen(bookingId: widget.bookingId),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const Color navyBlue = Color(0xFF0D1F33);
-    final bool isStartEnabled = _photos.isNotEmpty;
+    final bool isStartEnabled = _photos.isNotEmpty && !_isSubmitting;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F5F7),
@@ -146,7 +189,11 @@ class _BeforeWorkPhotoScreenState extends State<BeforeWorkPhotoScreen> {
         titleSpacing: 0,
         title: const Text(
           'Before Work Photo',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.white),
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: Colors.white,
+          ),
         ),
       ),
       body: SingleChildScrollView(
@@ -155,8 +202,13 @@ class _BeforeWorkPhotoScreenState extends State<BeforeWorkPhotoScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Capture photos showing the work to be\ndone.',
-              style: TextStyle(fontSize: 15, color: Color(0xFF101828), height: 1.35),
+              'Upload Before Work Photo',
+              style: TextStyle(
+                fontSize: 15,
+                color: Color(0xFF101828),
+                fontWeight: FontWeight.w600,
+                height: 1.35,
+              ),
             ),
             const SizedBox(height: 18),
             _uploadCard(),
@@ -170,23 +222,32 @@ class _BeforeWorkPhotoScreenState extends State<BeforeWorkPhotoScreen> {
         child: SizedBox(
           height: 50,
           child: ElevatedButton(
-            onPressed: isStartEnabled
-                ? () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const JobInProgressScreen()),
-                    );
-                  }
-                : null,
+            onPressed: isStartEnabled ? _submitBeforePhotos : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: navyBlue,
               disabledBackgroundColor: const Color(0xFF98A2B3),
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
-            child: const Text(
-              'Start Timer',
-              style: TextStyle(color: Colors.white, fontSize: 22 / 2, fontWeight: FontWeight.w600),
-            ),
+            child: _isSubmitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text(
+                    'Done',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22 / 2,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
           ),
         ),
       ),
@@ -209,12 +270,12 @@ class _BeforeWorkPhotoScreenState extends State<BeforeWorkPhotoScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: const [
               Text(
-                'Upload Work Photo',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFF101828)),
-              ),
-              Text(
-                'Min 5 photos',
-                style: TextStyle(fontSize: 12, color: Color(0xFF667085)),
+                'Upload Before Work Photo',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF101828),
+                ),
               ),
             ],
           ),
@@ -231,10 +292,18 @@ class _BeforeWorkPhotoScreenState extends State<BeforeWorkPhotoScreen> {
       height: 42,
       child: ElevatedButton.icon(
         onPressed: _showImageSourceSheet,
-        icon: const Icon(Icons.photo_camera_outlined, color: Colors.white, size: 17),
+        icon: const Icon(
+          Icons.photo_camera_outlined,
+          color: Colors.white,
+          size: 17,
+        ),
         label: const Text(
           'Take Photo',
-          style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
+          ),
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF0D1F33),
@@ -276,10 +345,7 @@ class _BeforeWorkPhotoScreenState extends State<BeforeWorkPhotoScreen> {
                 border: Border.all(color: const Color(0xFF00C853), width: 2),
               ),
               clipBehavior: Clip.hardEdge,
-              child: Image.file(
-                File(_photos[index].path),
-                fit: BoxFit.cover,
-              ),
+              child: Image.file(File(_photos[index].path), fit: BoxFit.cover),
             ),
           ),
           Positioned(
@@ -311,7 +377,11 @@ class _BeforeWorkPhotoScreenState extends State<BeforeWorkPhotoScreen> {
               alignment: Alignment.center,
               child: Text(
                 '${index + 1}',
-                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ),
@@ -339,7 +409,11 @@ class _BeforeWorkPhotoScreenState extends State<BeforeWorkPhotoScreen> {
               SizedBox(height: 6),
               Text(
                 'Add Photo',
-                style: TextStyle(color: Color(0xFF1D2939), fontSize: 20 / 2, fontWeight: FontWeight.w500),
+                style: TextStyle(
+                  color: Color(0xFF1D2939),
+                  fontSize: 20 / 2,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),
@@ -366,16 +440,47 @@ class _BeforeWorkPhotoScreenState extends State<BeforeWorkPhotoScreen> {
               SizedBox(width: 8),
               Text(
                 'Photo Guidelines',
-                style: TextStyle(fontSize: 22 / 2, fontWeight: FontWeight.w500, color: Color(0xFF0D1F33)),
+                style: TextStyle(
+                  fontSize: 22 / 2,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF0D1F33),
+                ),
               ),
             ],
           ),
           SizedBox(height: 10),
-          Text('• Ensure good lighting', style: TextStyle(fontSize: 10 / 1, color: Color(0xFF0037B3), height: 1.5)),
-          Text('• Capture entire work area', style: TextStyle(fontSize: 10 / 1, color: Color(0xFF0037B3), height: 1.5)),
-          Text('• Photo should be clear and focused', style: TextStyle(fontSize: 10 / 1, color: Color(0xFF0037B3), height: 1.5)),
-          Text('• Include all areas mentioned in work\ndescription',
-              style: TextStyle(fontSize: 10 / 1, color: Color(0xFF0037B3), height: 1.5)),
+          Text(
+            '• Ensure good lighting',
+            style: TextStyle(
+              fontSize: 10 / 1,
+              color: Color(0xFF0037B3),
+              height: 1.5,
+            ),
+          ),
+          Text(
+            '• Capture entire work area',
+            style: TextStyle(
+              fontSize: 10 / 1,
+              color: Color(0xFF0037B3),
+              height: 1.5,
+            ),
+          ),
+          Text(
+            '• Photo should be clear and focused',
+            style: TextStyle(
+              fontSize: 10 / 1,
+              color: Color(0xFF0037B3),
+              height: 1.5,
+            ),
+          ),
+          Text(
+            '• Include all areas mentioned in work\ndescription',
+            style: TextStyle(
+              fontSize: 10 / 1,
+              color: Color(0xFF0037B3),
+              height: 1.5,
+            ),
+          ),
         ],
       ),
     );
