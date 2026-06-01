@@ -7,7 +7,7 @@ import '../../../../models/upcoming_job_model.dart';
 import '../../../../providers/partner_provider.dart';
 import '../../../utils/toast_helper.dart';
 import '../job_details_screen.dart';
-import '../upcoming_job_detail_screen.dart';
+import '../job_in_progress_screen.dart';
 
 class HomeTabContent extends ConsumerStatefulWidget {
   const HomeTabContent({
@@ -198,11 +198,6 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
     return _userProfile?.displayName ?? 'Helper';
   }
 
-  int get _pendingCount =>
-      (_dashboard?['pendingRequestsCount'] as num?)?.toInt() ??
-      (_dashboard?['pendingRequestCount'] as num?)?.toInt() ??
-      0;
-
   int get _todayCompleted =>
       (_dashboard?['completedToday'] as num?)?.toInt() ??
       (_dashboard?['todayCompletedJobs'] as num?)?.toInt() ??
@@ -254,8 +249,6 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildCurrentJobCard(context),
-                          const SizedBox(height: 16),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -282,6 +275,8 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
                             ],
                           ),
                           const SizedBox(height: 10),
+                          _buildActiveJobCard(context),
+                          if (_hasActiveBooking) const SizedBox(height: 20),
                           _buildUpcomingJobsList(),
                         ],
                       ),
@@ -434,6 +429,319 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
     );
   }
 
+  bool get _hasActiveBooking => _activeBookingMap != null;
+
+  Map<String, dynamic>? get _activeBookingMap {
+    final activeBooking = _dashboard?['activeBooking'];
+    if (activeBooking is Map<String, dynamic>) return activeBooking;
+    if (activeBooking is Map) return Map<String, dynamic>.from(activeBooking);
+    return null;
+  }
+
+  Widget _buildActiveJobCard(BuildContext context) {
+    final activeBooking = _activeBookingMap;
+    if (activeBooking == null) return const SizedBox.shrink();
+
+    final bookingId = _activeBookingId(activeBooking);
+    final customer = _mapValue(activeBooking['customer']);
+    final helper = _mapValue(activeBooking['helper']);
+    final location = _mapValue(activeBooking['location']);
+    final category = _mapValue(activeBooking['category']);
+    final payment = _mapValue(activeBooking['payment']);
+    final services = activeBooking['services'] is List
+        ? activeBooking['services'] as List
+        : const [];
+    final service = services.whereType<Map>().isNotEmpty
+        ? Map<String, dynamic>.from(services.whereType<Map>().first)
+        : const <String, dynamic>{};
+
+    final status = _textValue(activeBooking['status'], fallback: 'IN_PROGRESS');
+    final customerName = _textValue(
+      customer['name'] ?? activeBooking['customerName'],
+      fallback: 'Customer',
+    );
+    final serviceName = _textValue(
+      service['name'] ?? activeBooking['serviceName'] ?? category['name'],
+      fallback: 'Service',
+    );
+    final address = _textValue(
+      activeBooking['address'] ?? location['full'] ?? location['short'],
+      fallback: 'Address not available',
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(14, 20, 14, 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFF9B208)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const CircleAvatar(
+                      radius: 17,
+                      backgroundColor: Color(0xFF0B2545),
+                      child: Icon(
+                        Icons.person_outline,
+                        color: Colors.white,
+                        size: 19,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            customerName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Color(0xFF101828),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.star,
+                                size: 12,
+                                color: Color(0xFFFDB022),
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                _ratingLabel(helper['rating']),
+                                style: const TextStyle(
+                                  color: Color(0xFF475467),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 130),
+                      child: Align(
+                        alignment: Alignment.topRight,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0B2545),
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: Text(
+                            serviceName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                _HomeJobInfoRow(
+                  icon: Icons.calendar_today_outlined,
+                  value: _scheduleLabel(activeBooking),
+                ),
+                _HomeJobInfoRow(
+                  icon: Icons.access_time_outlined,
+                  value: _textValue(
+                    activeBooking['durationLabel'] ?? activeBooking['duration'],
+                    fallback: 'Duration not available',
+                  ),
+                ),
+                _HomeJobInfoRow(
+                  icon: Icons.location_on_outlined,
+                  value: address,
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        _amountLabel(
+                          payment['amount'] ??
+                              activeBooking['amount'] ??
+                              activeBooking['finalAmount'],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF111827),
+                          fontSize: 34,
+                          fontWeight: FontWeight.w700,
+                          height: 1.0,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      height: 34,
+                      child: ElevatedButton(
+                        onPressed: () => _openActiveBooking(
+                          context,
+                          bookingId,
+                          status,
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF5B6472),
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 22),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                        ),
+                        child: const Text(
+                          'View Details',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            top: -12,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF9B208),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  _activeStatusLabel(status),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openActiveBooking(BuildContext context, int bookingId, String status) {
+    if (bookingId <= 0) return;
+    if (status.toUpperCase() == 'IN_PROGRESS') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => JobInProgressScreen(bookingId: bookingId),
+        ),
+      );
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => JobDetailsScreen(bookingId: bookingId),
+      ),
+    );
+  }
+
+  int _activeBookingId(Map<String, dynamic> booking) {
+    final value = booking['id'] ?? booking['bookingId'];
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  Map<String, dynamic> _mapValue(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return const <String, dynamic>{};
+  }
+
+  String _textValue(dynamic value, {String fallback = ''}) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? fallback : text;
+  }
+
+  String _activeStatusLabel(String status) {
+    final normalized = status.trim().toUpperCase();
+    if (normalized == 'IN_PROGRESS') return 'In progress';
+    if (normalized == 'CONFIRMED') return 'Confirmed';
+    return normalized
+        .split('_')
+        .where((part) => part.isNotEmpty)
+        .map((part) => part[0] + part.substring(1).toLowerCase())
+        .join(' ');
+  }
+
+  String _ratingLabel(dynamic value) {
+    final rating = value is num
+        ? value.toDouble()
+        : double.tryParse(value?.toString() ?? '');
+    if (rating == null || rating == 0) return '4.9';
+    return rating % 1 == 0 ? rating.toStringAsFixed(0) : rating.toStringAsFixed(1);
+  }
+
+  String _scheduleLabel(Map<String, dynamic> booking) {
+    final date = _textValue(booking['date']);
+    final time = _textValue(booking['time']);
+    if (date.isNotEmpty && time.isNotEmpty) return '$date \u2022 $time';
+    if (date.isNotEmpty) return date;
+    if (time.isNotEmpty) return time;
+
+    final timeline = _mapValue(booking['timeline']);
+    final scheduledAt = DateTime.tryParse(_textValue(timeline['scheduledAt']));
+    if (scheduledAt == null) return 'Schedule not available';
+    final local = scheduledAt.toLocal();
+    final day = local.day.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    final year = (local.year % 100).toString().padLeft(2, '0');
+    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final minute = local.minute.toString().padLeft(2, '0');
+    final period = local.hour >= 12 ? 'PM' : 'AM';
+    return '$day/$month/$year \u2022 $hour:$minute $period';
+  }
+
+  String _amountLabel(dynamic value) {
+    final amount = value is num ? value : num.tryParse(value?.toString() ?? '');
+    if (amount == null) return '\u20B90';
+    if (amount % 1 == 0) return '\u20B9${amount.toInt()}';
+    return '\u20B9${amount.toStringAsFixed(2)}';
+  }
+
+  // ignore: unused_element
   Widget _buildCurrentJobCard(BuildContext context) {
     final activeBooking = _dashboard?['activeBooking'] as Map<String, dynamic>?;
     if (activeBooking == null) {
@@ -502,11 +810,21 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
                 child: OutlinedButton(
                   onPressed: () {
                     final bookingId = activeBooking['id'] as int? ?? 0;
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => JobDetailsScreen(bookingId: bookingId),
-                      ),
-                    );
+                    final status = (activeBooking['status'] as String? ?? 'CONFIRMED').toUpperCase();
+                    // Navigate to JobInProgressScreen if status is IN_PROGRESS
+                    if (status == 'IN_PROGRESS') {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => JobInProgressScreen(bookingId: bookingId),
+                        ),
+                      );
+                    } else {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => JobDetailsScreen(bookingId: bookingId),
+                        ),
+                      );
+                    }
                   },
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 10),
@@ -579,17 +897,61 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
               job: _upcomingJobs[i],
               onTap: () {
                 final selected = _upcomingJobs[i];
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => JobDetailsScreen(
-                      bookingId: selected.id,
+                final status = (selected.status).toUpperCase();
+                // Navigate to JobInProgressScreen if status is IN_PROGRESS
+                if (status == 'IN_PROGRESS') {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => JobInProgressScreen(
+                        bookingId: selected.id,
+                      ),
                     ),
-                  ),
-                );
+                  );
+                } else {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => JobDetailsScreen(
+                        bookingId: selected.id,
+                      ),
+                    ),
+                  );
+                }
               },
             ),
             if (i < _upcomingJobs.length - 1) const SizedBox(width: 12),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _HomeJobInfoRow extends StatelessWidget {
+  const _HomeJobInfoRow({required this.icon, required this.value});
+
+  final IconData icon;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFF344054)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFF475467),
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -803,7 +1165,7 @@ class _DetailRow extends StatelessWidget {
       Widget build(BuildContext context) {
         // Determine presentation state and colors
         final statusSource = job.displayState.isNotEmpty ? job.displayState : job.dayLabel;
-        String _normalize(String src) {
+        String normalize(String src) {
           final n = src.trim().toLowerCase();
           if (n.contains('today')) return 'Today';
           if (n.contains('tomorrow')) return 'Tomorrow';
@@ -811,7 +1173,7 @@ class _DetailRow extends StatelessWidget {
           return 'Upcoming';
         }
 
-        final statusText = _normalize(statusSource);
+        final statusText = normalize(statusSource);
         final borderColor = statusText.toLowerCase() == 'today'
             ? const Color(0xFF22C55E)
             : statusText.toLowerCase() == 'tomorrow'

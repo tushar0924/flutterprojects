@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,6 +7,7 @@ import '../../models/booking_details_model.dart';
 import '../../providers/booking_socket_provider.dart';
 import '../../repositories/booking_details_repository.dart';
 import 'payment_received_job_details_screen.dart';
+import 'job_in_progress_screen.dart';
 
 class JobDetailsScreen extends ConsumerStatefulWidget {
   const JobDetailsScreen({super.key, required this.bookingId});
@@ -22,6 +25,9 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
   String? _errorMessage;
   String? _handledPaymentEventKey;
   ProviderSubscription<BookingSocketState>? _bookingSocketSubscription;
+  Timer? _paymentTimer;
+  int? _remainingSeconds;
+  bool _navigatedForTimeout = false;
 
   @override
   void initState() {
@@ -40,6 +46,7 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
   @override
   void dispose() {
     _bookingSocketSubscription?.close();
+    _paymentTimer?.cancel();
     super.dispose();
   }
 
@@ -70,6 +77,21 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
 
     if (!mounted) return;
 
+    // Check if job is IN_PROGRESS and redirect to JobInProgressScreen
+    if (booking != null) {
+      final status = booking.status.toUpperCase();
+      if (status == 'IN_PROGRESS') {
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => JobInProgressScreen(bookingId: widget.bookingId),
+            ),
+          );
+        }
+        return;
+      }
+    }
+
     setState(() {
       _booking = booking;
       _isLoading = false;
@@ -77,6 +99,10 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
         _errorMessage = 'Failed to load booking details';
       }
     });
+
+    if (booking != null) {
+      _initPaymentCountdownFromBooking(booking);
+    }
   }
 
   Future<void> _redirectToPaymentReceived() async {
@@ -112,6 +138,8 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
           _errorMessage = null;
         });
 
+        _initPaymentCountdownFromBooking(booking);
+
         if (!booking.isPaymentPending) {
           return booking;
         }
@@ -125,6 +153,58 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
       return booking;
     }
     return null;
+  }
+
+  void _initPaymentCountdownFromBooking(BookingDetailsModel booking) {
+    if (!booking.isPaymentPending) {
+      _paymentTimer?.cancel();
+      setState(() {
+        _remainingSeconds = null;
+      });
+      return;
+    }
+
+    // Use remainingMinutes from backend if provided; otherwise default to 10 minutes
+    final minutes = booking.paymentWaiting.remainingMinutes > 0
+        ? booking.paymentWaiting.remainingMinutes
+        : 10;
+
+    final seconds = minutes * 60;
+    _startPaymentCountdown(seconds);
+  }
+
+  void _startPaymentCountdown(int seconds) {
+    _paymentTimer?.cancel();
+    _remainingSeconds = seconds;
+    _paymentTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      if (_remainingSeconds == null) {
+        timer.cancel();
+        return;
+      }
+
+      if (_remainingSeconds! <= 0) {
+        timer.cancel();
+        setState(() {
+          _remainingSeconds = 0;
+        });
+
+        if (!_navigatedForTimeout) {
+          _navigatedForTimeout = true;
+          // Navigate back to the app's first route (home)
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        }
+        return;
+      }
+
+      setState(() {
+        _remainingSeconds = _remainingSeconds! - 1;
+      });
+    });
   }
 
   @override
@@ -447,9 +527,17 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
 
   Widget _buildStatusHeader(String statusLabel, BookingDetailsModel booking) {
     if (booking.isPaymentPending) {
-      final waitingText = booking.paymentWaiting.remainingMinutes > 0
-          ? 'Waiting time: ${booking.paymentWaiting.remainingMinutes} minutes'
-          : 'Waiting time: 00 minutes';
+      String waitingText;
+      if (_remainingSeconds != null && _remainingSeconds! > 0) {
+        final mins = _remainingSeconds! ~/ 60;
+        final secs = _remainingSeconds! % 60;
+        final formatted = '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+        waitingText = 'Waiting time: $formatted';
+      } else if (booking.paymentWaiting.remainingMinutes > 0) {
+        waitingText = 'Waiting time: ${booking.paymentWaiting.remainingMinutes} minutes';
+      } else {
+        waitingText = 'Waiting time: 00:00';
+      }
 
       return Container(
         padding: const EdgeInsets.all(12),

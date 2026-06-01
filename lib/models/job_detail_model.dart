@@ -103,6 +103,7 @@ class JobService {
   final String name;
   final int price;
   final int duration;
+  final int totalDuration;
   final int quantity;
   final List<String> included;
   final List<String> notIncluded;
@@ -113,6 +114,7 @@ class JobService {
     required this.name,
     required this.price,
     required this.duration,
+    required this.totalDuration,
     required this.quantity,
     required this.included,
     required this.notIncluded,
@@ -124,7 +126,8 @@ class JobService {
       id: json['id'] as int? ?? 0,
       name: json['name'] as String? ?? '',
       price: json['price'] as int? ?? 0,
-      duration: json['duration'] as int? ?? 0,
+      duration: json['unitDurationMinutes'] as int? ?? json['duration'] as int? ?? 0,
+      totalDuration: json['totalDuration'] as int? ?? 0,
       quantity: json['quantity'] as int? ?? 1,
       included: _parseStringList(json['included']),
       notIncluded: _parseStringList(json['notIncluded']),

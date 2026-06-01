@@ -99,6 +99,62 @@ class BookingDetailsRepository {
     }
   }
 
+  Future<bool> uploadAfterPhotos(int bookingId, List<XFile> photos) async {
+    try {
+      final formData = FormData();
+      for (final photo in photos) {
+        formData.files.add(
+          MapEntry(
+            'photos',
+            await MultipartFile.fromFile(photo.path, filename: photo.name),
+          ),
+        );
+      }
+
+      final response = await _client.post(
+        'partner/bookings/$bookingId/after-photos',
+        data: formData,
+      );
+
+      final data = response.data;
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        if (data is Map<String, dynamic>) {
+          return data['success'] != false;
+        }
+        return true;
+      }
+      return false;
+    } on DioException catch (e) {
+      final message = _extractErrorMessage(e);
+      AppToast.showError(message);
+      return false;
+    } catch (_) {
+      AppToast.showError('Failed to upload after work photos');
+      return false;
+    }
+  }
+
+  Future<bool> completeBooking(int bookingId) async {
+    try {
+      final response = await _client.post('partner/bookings/$bookingId/complete');
+      final data = response.data;
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        if (data is Map<String, dynamic>) {
+          return data['success'] != false;
+        }
+        return true;
+      }
+      return false;
+    } on DioException catch (e) {
+      final message = _extractErrorMessage(e);
+      AppToast.showError(message);
+      return false;
+    } catch (_) {
+      AppToast.showError('Failed to complete booking');
+      return false;
+    }
+  }
+
   Future<bool> startBookingTimer(int bookingId) async {
     try {
       final response = await _client.post(

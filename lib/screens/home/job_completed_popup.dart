@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
-Future<void> showJobCompletedPopup(BuildContext context) {
+Future<void> showJobCompletedPopup(
+  BuildContext context, {
+  required String timeTaken,
+  Future<void> Function()? onConfirmed,
+}) {
   return showDialog<void>(
     context: context,
     barrierDismissible: true,
@@ -70,15 +74,15 @@ Future<void> showJobCompletedPopup(BuildContext context) {
               // --- Time Taken Light Blue Box ---
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF0F7FF), // Exact light blue
+                  color: const Color(0xFFF0F7FF),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Text(
-                  'Time taken: 02:16',
+                child: Text(
+                  'Time taken: $timeTaken',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 15,
                     color: Color(0xFF344054),
                     fontWeight: FontWeight.w400,
@@ -91,9 +95,9 @@ Future<void> showJobCompletedPopup(BuildContext context) {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     Navigator.of(context).pop();
-                    showRateExperiencePopup(context);
+                    if (onConfirmed != null) await onConfirmed();
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00C853), // Vibrant Green
