@@ -138,7 +138,10 @@ class _JobInProgressScreenState extends ConsumerState<JobInProgressScreen> {
   }
 
   Future<void> _pickImage() async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.camera);
+    final XFile? image = await _picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 85,
+    );
     if (image != null) {
       setState(() {
         _uploadedImages.add(File(image.path));
@@ -280,7 +283,7 @@ class _JobInProgressScreenState extends ConsumerState<JobInProgressScreen> {
         decoration: const BoxDecoration(color: Colors.white),
         child: ElevatedButton.icon(
           onPressed: _uploadedImages.isNotEmpty
-              ? () {
+              ? () async {
                   final startedStr = _jobDetail?.timeline.startedAt;
                   DateTime? started;
                   if (startedStr != null && startedStr.isNotEmpty) started = DateTime.tryParse(startedStr);
@@ -288,20 +291,25 @@ class _JobInProgressScreenState extends ConsumerState<JobInProgressScreen> {
                   final elapsed = started != null ? now.difference(started) : Duration.zero;
                   final timeTaken = _formatDuration(elapsed);
 
-                  showJobCompletedPopup(
+                  final success = await showJobCompletedPopup(
                     context,
                     timeTaken: timeTaken,
                     onConfirmed: () async {
                       final repo = ref.read(bookingDetailsRepositoryProvider);
                       final success = await repo.completeBooking(_jobDetail?.id ?? widget.bookingId);
-                      if (!context.mounted) return;
-                      if (success) {
-                        showRateExperiencePopup(context);
-                      } else {
-                        AppToast.showError('Failed to complete booking');
-                      }
+                      return success;
                     },
                   );
+                  if (!context.mounted) return;
+                  if (success == true) {
+                    await showRateExperiencePopup(
+                      context,
+                      bookingId: _jobDetail?.id ?? widget.bookingId,
+                      customerName: _jobDetail?.customer.name,
+                    );
+                    if (!context.mounted) return;
+                    Navigator.of(context).pushNamedAndRemoveUntil(AppRouter.home, (route) => false);
+                  }
                 }
               : null,
           icon: const Icon(Icons.check_circle_outline, color: Colors.white),

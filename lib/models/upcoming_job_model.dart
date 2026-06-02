@@ -2,6 +2,7 @@ class UpcomingJobModel {
   const UpcomingJobModel({
     required this.id,
     required this.status,
+    required this.workflowState,
     required this.jobState,
     required this.displayState,
     required this.date,
@@ -19,8 +20,10 @@ class UpcomingJobModel {
 
   final int id;
   final String status; // CONFIRMED, PENDING, etc.
+  final String workflowState;
   final String jobState; // UPCOMING, ACTIVE, COMPLETED, etc.
-  final String displayState; // Presentation state from API (e.g. TODAY, TOMORROW)
+  final String
+  displayState; // Presentation state from API (e.g. TODAY, TOMORROW)
   final String date; // "Friday, May 29, 2026"
   final String time; // "04:00 PM"
   final String duration; // "2 hours"
@@ -37,20 +40,34 @@ class UpcomingJobModel {
     return UpcomingJobModel(
       id: _toInt(json['id']),
       status: _toString(json['status'], fallback: 'PENDING'),
+      workflowState: _toString(json['workflowState']),
       jobState: _toString(json['jobState'], fallback: 'UPCOMING'),
-      displayState: _toString(json['displayState'] ?? json['jobState'], fallback: ''),
+      displayState: _toString(
+        json['displayState'] ?? json['jobState'],
+        fallback: '',
+      ),
       date: _toString(json['date']),
       time: _toString(json['time']),
       // API may return `durationLabel`; prefer it when available for UI display.
       duration: _toString(json['durationLabel'] ?? json['duration']),
-      category: JobCategory.fromJson(json['category'] as Map<String, dynamic>? ?? {}),
+      category: JobCategory.fromJson(
+        json['category'] as Map<String, dynamic>? ?? {},
+      ),
       services: _parseServices(json['services']),
-      customer: JobCustomer.fromJson(json['customer'] as Map<String, dynamic>? ?? {}),
+      customer: JobCustomer.fromJson(
+        json['customer'] as Map<String, dynamic>? ?? {},
+      ),
       helper: JobHelper.fromJson(json['helper'] as Map<String, dynamic>? ?? {}),
-      location: JobLocation.fromJson(json['location'] as Map<String, dynamic>? ?? {}),
-      payment: JobPayment.fromJson(json['payment'] as Map<String, dynamic>? ?? {}),
+      location: JobLocation.fromJson(
+        json['location'] as Map<String, dynamic>? ?? {},
+      ),
+      payment: JobPayment.fromJson(
+        json['payment'] as Map<String, dynamic>? ?? {},
+      ),
       payout: JobPayout.fromJson(json['payout'] as Map<String, dynamic>? ?? {}),
-      timeline: JobTimeline.fromJson(json['timeline'] as Map<String, dynamic>? ?? {}),
+      timeline: JobTimeline.fromJson(
+        json['timeline'] as Map<String, dynamic>? ?? {},
+      ),
     );
   }
 
@@ -87,10 +104,7 @@ class UpcomingJobModel {
 }
 
 class JobCategory {
-  const JobCategory({
-    required this.id,
-    required this.name,
-  });
+  const JobCategory({required this.id, required this.name});
 
   final int id;
   final String name;
@@ -147,11 +161,7 @@ class JobCustomer {
 }
 
 class JobHelper {
-  const JobHelper({
-    required this.id,
-    required this.name,
-    required this.rating,
-  });
+  const JobHelper({required this.id, required this.name, required this.rating});
 
   final int id;
   final String name;

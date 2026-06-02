@@ -2,24 +2,27 @@ import 'dart:async';
 import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'before_work_photo_screen.dart';
+import '../../repositories/booking_details_repository.dart';
 import '../../utils/toast_helper.dart';
 
-class SelfieVerificationScreen extends StatefulWidget {
+class SelfieVerificationScreen extends ConsumerStatefulWidget {
   const SelfieVerificationScreen({super.key, required this.bookingId});
 
   final int bookingId;
 
   @override
-  State<SelfieVerificationScreen> createState() =>
+  ConsumerState<SelfieVerificationScreen> createState() =>
       _SelfieVerificationScreenState();
 }
 
-class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
+class _SelfieVerificationScreenState extends ConsumerState<SelfieVerificationScreen> {
   CameraController? _cameraController;
   XFile? _capturedSelfie;
   bool _isCapturing = false;
+  bool _isUploading = false;
   bool _isVerified = false;
   bool _isPermissionPermanentlyDenied = false;
   String? _cameraError;
@@ -160,16 +163,39 @@ class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
     });
   }
 
-  void _verifySelfie() {
-    if (_isVerified) return;
+  Future<void> _verifySelfie() async {
+    if (_isVerified || _isUploading || _capturedSelfie == null) return;
 
-    setState(() => _isVerified = true);
-    _redirectTimer?.cancel();
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => BeforeWorkPhotoScreen(bookingId: widget.bookingId),
-      ),
+    setState(() => _isUploading = true);
+
+    final repository = ref.read(bookingDetailsRepositoryProvider);
+    final success = await repository.uploadStartSelfie(
+      widget.bookingId,
+      _capturedSelfie!.path,
     );
+
+    if (!mounted) return;
+
+    if (!success) {
+      setState(() => _isUploading = false);
+      return;
+    }
+
+    // Show verified state briefly before navigating
+    setState(() {
+      _isUploading = false;
+      _isVerified = true;
+    });
+
+    _redirectTimer?.cancel();
+    _redirectTimer = Timer(const Duration(milliseconds: 600), () {
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => BeforeWorkPhotoScreen(bookingId: widget.bookingId),
+        ),
+      );
+    });
   }
 
   @override
@@ -322,19 +348,30 @@ class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
         SizedBox(
           width: 220,
           child: ElevatedButton(
-            onPressed: _isVerified ? null : _verifySelfie,
+            onPressed: (_isVerified || _isUploading) ? null : _verifySelfie,
             style: ElevatedButton.styleFrom(
               minimumSize: const Size.fromHeight(40),
               backgroundColor: _isVerified
                   ? const Color(0xFF95EE9A)
                   : const Color(0xFF0D1F33),
-              disabledBackgroundColor: const Color(0xFF95EE9A),
+              disabledBackgroundColor: _isVerified
+                  ? const Color(0xFF95EE9A)
+                  : const Color(0xFF0D1F33),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(6),
               ),
               elevation: 0,
             ),
-            child: _isVerified
+            child: _isUploading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : _isVerified
                 ? const Icon(
                     Icons.check_circle_outline,
                     color: Color(0xFF0D1F33),

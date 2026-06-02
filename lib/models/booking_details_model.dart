@@ -2,6 +2,7 @@ class BookingDetailsModel {
   const BookingDetailsModel({
     required this.id,
     required this.status,
+    required this.workflowState,
     required this.jobState,
     required this.displayState,
     required this.date,
@@ -26,6 +27,7 @@ class BookingDetailsModel {
 
   final int id;
   final String status;
+  final String workflowState;
   final String jobState;
   final String displayState;
   final String date;
@@ -51,6 +53,7 @@ class BookingDetailsModel {
     return BookingDetailsModel(
       id: _toInt(json['id']),
       status: _toString(json['status']),
+      workflowState: _toString(json['workflowState']),
       jobState: _toString(json['jobState']),
       displayState: _toString(json['displayState']),
       date: _toString(json['date']),

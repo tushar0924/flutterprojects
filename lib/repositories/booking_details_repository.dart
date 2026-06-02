@@ -64,6 +64,36 @@ class BookingDetailsRepository {
     }
   }
 
+  /// POST /api/partner/bookings/:bookingId/start-selfie
+  Future<bool> uploadStartSelfie(int bookingId, String filePath) async {
+    try {
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(filePath),
+      });
+
+      final response = await _client.post(
+        'partner/bookings/$bookingId/start-selfie',
+        data: formData,
+      );
+
+      final data = response.data;
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        if (data is Map<String, dynamic>) {
+          return data['success'] != false;
+        }
+        return true;
+      }
+      return false;
+    } on DioException catch (e) {
+      final message = _extractErrorMessage(e);
+      AppToast.showError(message);
+      return false;
+    } catch (_) {
+      AppToast.showError('Failed to upload selfie');
+      return false;
+    }
+  }
+
   Future<bool> uploadBeforePhotos(int bookingId, List<XFile> photos) async {
     try {
       final formData = FormData();
@@ -151,6 +181,36 @@ class BookingDetailsRepository {
       return false;
     } catch (_) {
       AppToast.showError('Failed to complete booking');
+      return false;
+    }
+  }
+
+  Future<bool> submitRating({
+    required int bookingId,
+    required int serviceRating,
+    required int partnerRating,
+    String? review,
+  }) async {
+    try {
+      final response = await _client.post(
+        'ratings',
+        data: {
+          'bookingId': bookingId,
+          'serviceRating': serviceRating,
+          'partnerRating': partnerRating,
+          if (review != null && review.isNotEmpty) 'review': review,
+        },
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return true;
+      }
+      return false;
+    } on DioException catch (e) {
+      final message = _extractErrorMessage(e);
+      AppToast.showError(message);
+      return false;
+    } catch (_) {
+      AppToast.showError('Failed to submit rating');
       return false;
     }
   }

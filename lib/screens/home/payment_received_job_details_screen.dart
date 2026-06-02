@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/booking_details_model.dart';
-import 'start_job_otp_screen.dart';
+import 'job_workflow_navigation.dart';
 
 class PaymentReceivedJobDetailsScreen extends StatelessWidget {
   const PaymentReceivedJobDetailsScreen({super.key, required this.booking});
@@ -288,13 +288,9 @@ class PaymentReceivedJobDetailsScreen extends StatelessWidget {
               Expanded(
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => StartJobOtpScreen(
-                          bookingId: booking.id,
-                          customerName: booking.customer.name,
-                        ),
-                      ),
+                    openBookingWorkflowStep(
+                      context,
+                      booking: booking,
                     );
                   },
                   style: ElevatedButton.styleFrom(

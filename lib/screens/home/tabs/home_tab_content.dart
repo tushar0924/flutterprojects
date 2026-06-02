@@ -7,7 +7,7 @@ import '../../../../models/upcoming_job_model.dart';
 import '../../../../providers/partner_provider.dart';
 import '../../../utils/toast_helper.dart';
 import '../job_details_screen.dart';
-import '../job_in_progress_screen.dart';
+import '../job_workflow_navigation.dart';
 
 class HomeTabContent extends ConsumerStatefulWidget {
   const HomeTabContent({
@@ -276,8 +276,9 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
                           ),
                           const SizedBox(height: 10),
                           _buildActiveJobCard(context),
-                          if (_hasActiveBooking) const SizedBox(height: 20),
+                          if (_hasActiveBooking) const SizedBox(height: 30),
                           _buildUpcomingJobsList(),
+                          const SizedBox(height: 40),
                         ],
                       ),
                     )
@@ -456,6 +457,7 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
         : const <String, dynamic>{};
 
     final status = _textValue(activeBooking['status'], fallback: 'IN_PROGRESS');
+    final workflowState = _textValue(activeBooking['workflowState']);
     final customerName = _textValue(
       customer['name'] ?? activeBooking['customerName'],
       fallback: 'Customer',
@@ -608,6 +610,8 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
                           context,
                           bookingId,
                           status,
+                          workflowState,
+                          customerName,
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF5B6472),
@@ -633,21 +637,24 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
             ),
           ),
           Positioned(
-            top: -12,
+            top: -18,
             left: 0,
             right: 0,
             child: Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF9B208),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   _activeStatusLabel(status),
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 11,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -659,21 +666,36 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
     );
   }
 
-  void _openActiveBooking(BuildContext context, int bookingId, String status) {
+  void _openActiveBooking(
+    BuildContext context,
+    int bookingId,
+    String status,
+    String workflowState,
+    String customerName,
+  ) {
     if (bookingId <= 0) return;
     if (status.toUpperCase() == 'IN_PROGRESS') {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => JobInProgressScreen(bookingId: bookingId),
-        ),
+      if (workflowState.trim().isEmpty) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => JobDetailsScreen(bookingId: bookingId),
+          ),
+        );
+        return;
+      }
+
+      openJobWorkflowStep(
+        context,
+        bookingId: bookingId,
+        status: status,
+        workflowState: workflowState,
+        customerName: customerName,
       );
       return;
     }
 
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => JobDetailsScreen(bookingId: bookingId),
-      ),
+      MaterialPageRoute(builder: (_) => JobDetailsScreen(bookingId: bookingId)),
     );
   }
 
@@ -711,7 +733,9 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
         ? value.toDouble()
         : double.tryParse(value?.toString() ?? '');
     if (rating == null || rating == 0) return '4.9';
-    return rating % 1 == 0 ? rating.toStringAsFixed(0) : rating.toStringAsFixed(1);
+    return rating % 1 == 0
+        ? rating.toStringAsFixed(0)
+        : rating.toStringAsFixed(1);
   }
 
   String _scheduleLabel(Map<String, dynamic> booking) {
@@ -810,18 +834,34 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
                 child: OutlinedButton(
                   onPressed: () {
                     final bookingId = activeBooking['id'] as int? ?? 0;
-                    final status = (activeBooking['status'] as String? ?? 'CONFIRMED').toUpperCase();
-                    // Navigate to JobInProgressScreen if status is IN_PROGRESS
+                    final status =
+                        (activeBooking['status'] as String? ?? 'CONFIRMED')
+                            .toUpperCase();
+                    final workflowState =
+                        activeBooking['workflowState'] as String? ?? '';
                     if (status == 'IN_PROGRESS') {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => JobInProgressScreen(bookingId: bookingId),
-                        ),
-                      );
+                      if (workflowState.trim().isEmpty) {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                JobDetailsScreen(bookingId: bookingId),
+                          ),
+                        );
+                      } else {
+                        openJobWorkflowStep(
+                          context,
+                          bookingId: bookingId,
+                          status: status,
+                          workflowState: workflowState,
+                          customerName:
+                              customer?['name'] as String? ?? 'Customer',
+                        );
+                      }
                     } else {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => JobDetailsScreen(bookingId: bookingId),
+                          builder: (_) =>
+                              JobDetailsScreen(bookingId: bookingId),
                         ),
                       );
                     }
@@ -898,21 +938,27 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
               onTap: () {
                 final selected = _upcomingJobs[i];
                 final status = (selected.status).toUpperCase();
-                // Navigate to JobInProgressScreen if status is IN_PROGRESS
                 if (status == 'IN_PROGRESS') {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => JobInProgressScreen(
-                        bookingId: selected.id,
+                  if (selected.workflowState.trim().isEmpty) {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            JobDetailsScreen(bookingId: selected.id),
                       ),
-                    ),
-                  );
+                    );
+                  } else {
+                    openJobWorkflowStep(
+                      context,
+                      bookingId: selected.id,
+                      status: selected.status,
+                      workflowState: selected.workflowState,
+                      customerName: selected.customerName,
+                    );
+                  }
                 } else {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => JobDetailsScreen(
-                        bookingId: selected.id,
-                      ),
+                      builder: (_) => JobDetailsScreen(bookingId: selected.id),
                     ),
                   );
                 }
@@ -1154,200 +1200,207 @@ class _DetailRow extends StatelessWidget {
   }
 }
 
+class _UpcomingJobCard extends StatelessWidget {
+  const _UpcomingJobCard({required this.job, required this.onTap});
 
-    class _UpcomingJobCard extends StatelessWidget {
-      const _UpcomingJobCard({required this.job, required this.onTap});
+  final UpcomingJobModel job;
+  final VoidCallback onTap;
 
-      final UpcomingJobModel job;
-      final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) {
+    // Determine presentation state and colors
+    final statusSource = job.displayState.isNotEmpty
+        ? job.displayState
+        : job.dayLabel;
+    String normalize(String src) {
+      final n = src.trim().toLowerCase();
+      if (n.contains('today')) return 'Today';
+      if (n.contains('tomorrow')) return 'Tomorrow';
+      if (n.contains('cancel')) return 'Cancelled';
+      return 'Upcoming';
+    }
 
-      @override
-      Widget build(BuildContext context) {
-        // Determine presentation state and colors
-        final statusSource = job.displayState.isNotEmpty ? job.displayState : job.dayLabel;
-        String normalize(String src) {
-          final n = src.trim().toLowerCase();
-          if (n.contains('today')) return 'Today';
-          if (n.contains('tomorrow')) return 'Tomorrow';
-          if (n.contains('cancel')) return 'Cancelled';
-          return 'Upcoming';
-        }
+    final statusText = normalize(statusSource);
+    final borderColor = statusText.toLowerCase() == 'today'
+        ? const Color(0xFF22C55E)
+        : statusText.toLowerCase() == 'tomorrow'
+        ? const Color(0xFF0EA5E9)
+        : statusText.toLowerCase().contains('cancel')
+        ? const Color(0xFFEF4444)
+        : const Color(0xFFF97316);
 
-        final statusText = normalize(statusSource);
-        final borderColor = statusText.toLowerCase() == 'today'
-            ? const Color(0xFF22C55E)
-            : statusText.toLowerCase() == 'tomorrow'
-                ? const Color(0xFF0EA5E9)
-                : statusText.toLowerCase().contains('cancel')
-                    ? const Color(0xFFEF4444)
-                    : const Color(0xFFF97316);
-
-        return InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned(
-                top: -18,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: borderColor,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      statusText,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            top: -18,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: borderColor,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  statusText,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-              Container(
-                width: 278,
-                padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFFFFF),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: borderColor),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+            ),
+          ),
+          Container(
+            width: 278,
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFFFF),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: borderColor),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 34,
-                          height: 34,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF0B2545),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.person_outline,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                job.customerName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Color(0xFF101828),
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 1),
-                              Row(
-                                children: [
-                                  const Icon(
-                                    Icons.star,
-                                    color: Color(0xFFF59E0B),
-                                    size: 14,
-                                  ),
-                                  const SizedBox(width: 2),
-                                  Text(
-                                    job.displayRating,
-                                    style: const TextStyle(
-                                      color: Color(0xFF101828),
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w400,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0B2545),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            job.serviceName,
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF0B2545),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.person_outline,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            job.customerName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
+                              color: Color(0xFF101828),
+                              fontSize: 17,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 1),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.star,
+                                color: Color(0xFFF59E0B),
+                                size: 14,
+                              ),
+                              const SizedBox(width: 2),
+                              Text(
+                                job.displayRating,
+                                style: const TextStyle(
+                                  color: Color(0xFF101828),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 10),
-                    _infoRow(Icons.calendar_month_outlined, job.displaySchedule),
-                    const SizedBox(height: 6),
-                    _infoRow(Icons.access_time_outlined, _durationLine),
-                    const SizedBox(height: 6),
-                    _infoRow(Icons.currency_rupee, _rateLine),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0B2545),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        job.serviceName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 10),
+                _infoRow(Icons.calendar_month_outlined, job.displaySchedule),
+                const SizedBox(height: 6),
+                _infoRow(Icons.access_time_outlined, _durationLine),
+                const SizedBox(height: 6),
+                _infoRow(Icons.currency_rupee, _rateLine),
+              ],
+            ),
           ),
-        );
-      }
-      String get _durationLine {
-        final raw = job.displayDuration.trim();
-        if (raw.isEmpty || raw == '—') return '—';
-        final lower = raw.toLowerCase();
-        if (lower.contains('duration')) return raw;
-        return '$raw duration';
-      }
+        ],
+      ),
+    );
+  }
 
-      String get _rateLine {
-        final raw = job.displayAmount.trim();
-        if (raw.isEmpty || raw == '—') return '—';
-        final lower = raw.toLowerCase();
-        if (lower.contains('hour') || lower.contains('/hr') || lower.contains('/hour')) {
-          return raw;
-        }
-        return '$raw per hour';
-      }
+  String get _durationLine {
+    final raw = job.displayDuration.trim();
+    if (raw.isEmpty || raw == '—') return '—';
+    final lower = raw.toLowerCase();
+    if (lower.contains('duration')) return raw;
+    return '$raw duration';
+  }
 
-      Widget _infoRow(IconData icon, String text) {
-        return Padding(
-          padding: EdgeInsets.zero,
-          child: Row(
-            children: [
-              Icon(icon, size: 17, color: const Color(0xFF1F2937)),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  text,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF1F2937),
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      }
+  String get _rateLine {
+    final raw = job.displayAmount.trim();
+    if (raw.isEmpty || raw == '—') return '—';
+    final lower = raw.toLowerCase();
+    if (lower.contains('hour') ||
+        lower.contains('/hr') ||
+        lower.contains('/hour')) {
+      return raw;
     }
+    return '$raw per hour';
+  }
+
+  Widget _infoRow(IconData icon, String text) {
+    return Padding(
+      padding: EdgeInsets.zero,
+      child: Row(
+        children: [
+          Icon(icon, size: 17, color: const Color(0xFF1F2937)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF1F2937),
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

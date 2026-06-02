@@ -3,11 +3,7 @@ class JobDetailResponse {
   final JobDetailModel? data;
   final String? message;
 
-  JobDetailResponse({
-    required this.success,
-    this.data,
-    this.message,
-  });
+  JobDetailResponse({required this.success, this.data, this.message});
 
   factory JobDetailResponse.fromJson(Map<String, dynamic> json) {
     return JobDetailResponse(
@@ -21,6 +17,7 @@ class JobDetailResponse {
 class JobDetailModel {
   final int id;
   final String status;
+  final String workflowState;
   final String jobState;
   final String date;
   final String time;
@@ -38,6 +35,7 @@ class JobDetailModel {
   JobDetailModel({
     required this.id,
     required this.status,
+    required this.workflowState,
     required this.jobState,
     required this.date,
     required this.time,
@@ -57,18 +55,29 @@ class JobDetailModel {
     return JobDetailModel(
       id: json['id'] as int? ?? 0,
       status: json['status'] as String? ?? '',
+      workflowState: json['workflowState'] as String? ?? '',
       jobState: json['jobState'] as String? ?? '',
       date: json['date'] as String? ?? '',
       time: json['time'] as String? ?? '',
       duration: json['duration'] as String? ?? '',
-      category: JobCategory.fromJson(json['category'] as Map<String, dynamic>? ?? {}),
+      category: JobCategory.fromJson(
+        json['category'] as Map<String, dynamic>? ?? {},
+      ),
       services: _parseServices(json['services']),
-      customer: JobCustomer.fromJson(json['customer'] as Map<String, dynamic>? ?? {}),
+      customer: JobCustomer.fromJson(
+        json['customer'] as Map<String, dynamic>? ?? {},
+      ),
       helper: JobHelper.fromJson(json['helper'] as Map<String, dynamic>? ?? {}),
-      location: JobLocation.fromJson(json['location'] as Map<String, dynamic>? ?? {}),
-      payment: JobPayment.fromJson(json['payment'] as Map<String, dynamic>? ?? {}),
+      location: JobLocation.fromJson(
+        json['location'] as Map<String, dynamic>? ?? {},
+      ),
+      payment: JobPayment.fromJson(
+        json['payment'] as Map<String, dynamic>? ?? {},
+      ),
       payout: JobPayout.fromJson(json['payout'] as Map<String, dynamic>? ?? {}),
-      timeline: JobTimeline.fromJson(json['timeline'] as Map<String, dynamic>? ?? {}),
+      timeline: JobTimeline.fromJson(
+        json['timeline'] as Map<String, dynamic>? ?? {},
+      ),
       arrival: json['arrival'],
     );
   }
@@ -126,7 +135,8 @@ class JobService {
       id: json['id'] as int? ?? 0,
       name: json['name'] as String? ?? '',
       price: json['price'] as int? ?? 0,
-      duration: json['unitDurationMinutes'] as int? ?? json['duration'] as int? ?? 0,
+      duration:
+          json['unitDurationMinutes'] as int? ?? json['duration'] as int? ?? 0,
       totalDuration: json['totalDuration'] as int? ?? 0,
       quantity: json['quantity'] as int? ?? 1,
       included: _parseStringList(json['included']),

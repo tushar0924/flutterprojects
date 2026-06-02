@@ -6,8 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/booking_details_model.dart';
 import '../../providers/booking_socket_provider.dart';
 import '../../repositories/booking_details_repository.dart';
+import 'job_workflow_navigation.dart';
 import 'payment_received_job_details_screen.dart';
-import 'job_in_progress_screen.dart';
 
 class JobDetailsScreen extends ConsumerStatefulWidget {
   const JobDetailsScreen({super.key, required this.bookingId});
@@ -77,17 +77,10 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
 
     if (!mounted) return;
 
-    // Check if job is IN_PROGRESS and redirect to JobInProgressScreen
     if (booking != null) {
       final status = booking.status.toUpperCase();
       if (status == 'IN_PROGRESS') {
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (_) => JobInProgressScreen(bookingId: widget.bookingId),
-            ),
-          );
-        }
+        openBookingWorkflowStep(context, booking: booking, replace: true);
         return;
       }
     }
@@ -114,6 +107,14 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
 
     if (booking == null) {
       _isRedirectingForPayment = false;
+      return;
+    }
+
+    // If the booking is already IN_PROGRESS (e.g. OTP_VERIFIED),
+    // route through the workflow navigator instead of showing
+    // the payment-received detail page.
+    if (booking.status.toUpperCase() == 'IN_PROGRESS') {
+      openBookingWorkflowStep(context, booking: booking, replace: true);
       return;
     }
 
@@ -210,7 +211,83 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        backgroundColor: const Color(0xFFF9FAFB),
+        appBar: AppBar(
+          scrolledUnderElevation: 0,
+          elevation: 0,
+          backgroundColor: const Color(0xFF13223A),
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(20),
+              bottomRight: Radius.circular(20),
+            ),
+          ),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+            onPressed: () => Navigator.pop(context),
+          ),
+          titleSpacing: 0,
+          title: const Text(
+            'Job Details',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(86),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white24),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 140,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: Colors.white24,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          width: 100,
+                          height: 11,
+                          decoration: BoxDecoration(
+                            color: Colors.white12,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        body: const _JobDetailsSkeleton(),
+      );
     }
 
     if (_errorMessage != null || _booking == null) {
@@ -519,9 +596,7 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
           ],
         ),
       ),
-      bottomSheet: canShowActions
-          ? _ActionButtons(canStart: booking.actions.canStart)
-          : null,
+      bottomSheet: canShowActions ? _ActionButtons(booking: booking) : null,
     );
   }
 
@@ -531,10 +606,12 @@ class _JobDetailsScreenState extends ConsumerState<JobDetailsScreen> {
       if (_remainingSeconds != null && _remainingSeconds! > 0) {
         final mins = _remainingSeconds! ~/ 60;
         final secs = _remainingSeconds! % 60;
-        final formatted = '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+        final formatted =
+            '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
         waitingText = 'Waiting time: $formatted';
       } else if (booking.paymentWaiting.remainingMinutes > 0) {
-        waitingText = 'Waiting time: ${booking.paymentWaiting.remainingMinutes} minutes';
+        waitingText =
+            'Waiting time: ${booking.paymentWaiting.remainingMinutes} minutes';
       } else {
         waitingText = 'Waiting time: 00:00';
       }
@@ -902,9 +979,9 @@ class _LockedActionCard extends StatelessWidget {
 }
 
 class _ActionButtons extends StatelessWidget {
-  const _ActionButtons({required this.canStart});
+  const _ActionButtons({required this.booking});
 
-  final bool canStart;
+  final BookingDetailsModel booking;
 
   @override
   Widget build(BuildContext context) {
@@ -916,10 +993,11 @@ class _ActionButtons extends StatelessWidget {
       ),
       child: Row(
         children: [
-          if (canStart) ...[
+          if (booking.actions.canStart) ...[
             Expanded(
               child: ElevatedButton(
-                onPressed: () {},
+                onPressed: () =>
+                    openBookingWorkflowStep(context, booking: booking),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   backgroundColor: const Color(0xFF1D2939),
@@ -1204,6 +1282,229 @@ class _RequirementsCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _JobDetailsSkeleton extends StatelessWidget {
+  const _JobDetailsSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    const baseColor = Color(0xFFE4E7EC);
+    const lightColor = Color(0xFFF2F4F7);
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
+      children: [
+        // Service Details skeleton
+        _skeletonCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _box(width: 16, height: 16, color: baseColor),
+                  const SizedBox(width: 8),
+                  _box(width: 110, height: 13, color: baseColor),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _infoRowSkeleton(baseColor),
+              const SizedBox(height: 10),
+              _infoRowSkeleton(baseColor),
+              const SizedBox(height: 10),
+              _infoRowSkeleton(baseColor),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _box(width: 80, height: 11, color: lightColor),
+                  _box(width: 60, height: 11, color: baseColor),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Customer Details skeleton
+        _skeletonCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _box(width: 16, height: 16, color: baseColor),
+                  const SizedBox(width: 8),
+                  _box(width: 120, height: 13, color: baseColor),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  _circle(size: 44, color: baseColor),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _box(width: 130, height: 14, color: baseColor),
+                        const SizedBox(height: 6),
+                        _box(width: 70, height: 11, color: lightColor),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Service Location skeleton
+        _skeletonCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _box(width: 16, height: 16, color: baseColor),
+                  const SizedBox(width: 8),
+                  _box(width: 110, height: 13, color: baseColor),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _box(width: double.infinity, height: 12, color: lightColor),
+              const SizedBox(height: 6),
+              _box(width: 180, height: 12, color: lightColor),
+              const SizedBox(height: 12),
+              _box(width: 100, height: 12, color: baseColor),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Timing skeleton
+        _skeletonCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _box(width: 16, height: 16, color: baseColor),
+                  const SizedBox(width: 8),
+                  _box(width: 55, height: 13, color: baseColor),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _infoRowSkeleton(baseColor),
+              const SizedBox(height: 10),
+              _infoRowSkeleton(baseColor),
+              const SizedBox(height: 10),
+              _infoRowSkeleton(baseColor),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Payment Details skeleton
+        _skeletonCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _box(width: 16, height: 16, color: baseColor),
+                  const SizedBox(width: 8),
+                  _box(width: 110, height: 13, color: baseColor),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _infoRowSkeleton(baseColor),
+              const SizedBox(height: 10),
+              _infoRowSkeleton(baseColor),
+              const SizedBox(height: 8),
+              Container(height: 1, color: lightColor),
+              const SizedBox(height: 8),
+              _infoRowSkeleton(baseColor),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Important Info skeleton
+        _skeletonCard(
+          bgColor: const Color(0xFFEFF6FF),
+          borderColor: const Color(0xFFDBEAFE),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _box(width: 150, height: 13, color: const Color(0xFFBFDBFE)),
+              const SizedBox(height: 12),
+              _box(
+                  width: double.infinity,
+                  height: 10,
+                  color: const Color(0xFFBFDBFE)),
+              const SizedBox(height: 8),
+              _box(width: 240, height: 10, color: const Color(0xFFBFDBFE)),
+              const SizedBox(height: 8),
+              _box(width: 200, height: 10, color: const Color(0xFFBFDBFE)),
+              const SizedBox(height: 8),
+              _box(width: 180, height: 10, color: const Color(0xFFBFDBFE)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  static Widget _skeletonCard({
+    required Widget child,
+    Color bgColor = Colors.white,
+    Color borderColor = const Color(0xFFE4E7EC),
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: borderColor),
+      ),
+      child: child,
+    );
+  }
+
+  static Widget _box({
+    required double width,
+    required double height,
+    required Color color,
+    double radius = 6,
+  }) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(radius),
+      ),
+    );
+  }
+
+  static Widget _circle({required double size, required Color color}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+      ),
+    );
+  }
+
+  static Widget _infoRowSkeleton(Color color) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        _box(width: 90, height: 11, color: color.withValues(alpha: 0.6)),
+        _box(width: 70, height: 12, color: color),
+      ],
     );
   }
 }
