@@ -94,6 +94,8 @@ class UpcomingJobModel {
 
   String get displayDuration => duration;
 
+  String get displayAddress => location.full.isNotEmpty ? location.full : location.short;
+
   String get displayAmount => amountLabel;
 
   String get displayRating {

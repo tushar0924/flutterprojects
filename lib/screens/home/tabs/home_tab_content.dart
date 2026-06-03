@@ -8,6 +8,7 @@ import '../../../../providers/partner_provider.dart';
 import '../../../utils/toast_helper.dart';
 import '../job_details_screen.dart';
 import '../job_workflow_navigation.dart';
+import '../upcoming_job_detail_screen.dart';
 
 class HomeTabContent extends ConsumerStatefulWidget {
   const HomeTabContent({
@@ -30,6 +31,9 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
   UserProfile? _userProfile;
   bool _isLoading = true;
   bool _isOnline = true;
+  // Tracks whether the user has manually toggled the status at least once this
+  // session. When true, we never let the dashboard API overwrite the local state.
+  bool _userHasManuallyToggled = false;
   bool _isSyncingOnlineStatus = false;
   bool? _pendingOnlineState;
   List<UpcomingJobModel> _upcomingJobs = [];
@@ -55,7 +59,12 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
       if (dashboard.isNotEmpty && mounted) {
         setState(() {
           _dashboard = dashboard;
-          _isOnline = _resolveOnlineStatus(dashboard, fallback: _isOnline);
+          // Only let the server state set the toggle when the user hasn't
+          // manually changed it yet this session. This prevents the toggle from
+          // flipping back to offline on every refresh after the user went online.
+          if (!_userHasManuallyToggled) {
+            _isOnline = _resolveOnlineStatus(dashboard, fallback: _isOnline);
+          }
         });
       }
 
@@ -78,7 +87,10 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
     if (!mounted) return;
 
     final nextState = !_isOnline;
-    setState(() => _isOnline = nextState);
+    setState(() {
+      _isOnline = nextState;
+      _userHasManuallyToggled = true;
+    });
     _pendingOnlineState = nextState;
 
     // Keep tap response instant and sync server state in the background.
@@ -96,7 +108,15 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
         _pendingOnlineState = null;
 
         try {
-          final res = await partnerRepo.updateOpsStatus(isOnline: targetState);
+          Map<String, dynamic> res;
+          try {
+            res = await partnerRepo.updateOpsStatus(isOnline: targetState);
+          } catch (_) {
+            res = <String, dynamic>{};
+          }
+
+          // Only accept the server-returned state when it is explicitly
+          // present in the response; otherwise keep the user's chosen state.
           final serverState = _resolveOnlineStatus(res, fallback: targetState);
 
           if (!mounted) return;
@@ -274,7 +294,7 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
                                 ),
                             ],
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 16),
                           _buildActiveJobCard(context),
                           if (_hasActiveBooking) const SizedBox(height: 30),
                           _buildUpcomingJobsList(),
@@ -908,6 +928,36 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
     );
   }
 
+  void _openJobFromIndex(int i) {
+    final selected = _upcomingJobs[i];
+    final status = (selected.status).toUpperCase();
+    if (status == 'IN_PROGRESS') {
+      if (selected.workflowState.trim().isEmpty) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => JobDetailsScreen(bookingId: selected.id),
+          ),
+        );
+      } else {
+        openJobWorkflowStep(
+          context,
+          bookingId: selected.id,
+          status: selected.status,
+          workflowState: selected.workflowState,
+          customerName: selected.customerName,
+        );
+      }
+    } else {
+      // For UPCOMING / TODAY / TOMORROW jobs show the dedicated detail screen
+      // with the Start button and full job info layout.
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => UpcomingJobDetailScreen(jobId: selected.id),
+        ),
+      );
+    }
+  }
+
   Widget _buildUpcomingJobsList() {
     if (!_isLoading && _upcomingJobs.isEmpty) {
       return Container(
@@ -926,43 +976,31 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
       );
     }
 
+    // Single card → full width; multiple cards → horizontal scroll
+    if (_upcomingJobs.length == 1) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 18),
+        child: _UpcomingJobCard(
+          job: _upcomingJobs[0],
+          fullWidth: true,
+          onTap: () => _openJobFromIndex(0),
+        ),
+      );
+    }
+
     return SizedBox(
-      height: 146,
+      // Taller to accommodate the status badge that overflows the top
+      height: 240,
       child: ListView(
         scrollDirection: Axis.horizontal,
         clipBehavior: Clip.none,
+        padding: const EdgeInsets.only(top: 18),
         children: [
           for (int i = 0; i < _upcomingJobs.length; i++) ...[
             _UpcomingJobCard(
               job: _upcomingJobs[i],
-              onTap: () {
-                final selected = _upcomingJobs[i];
-                final status = (selected.status).toUpperCase();
-                if (status == 'IN_PROGRESS') {
-                  if (selected.workflowState.trim().isEmpty) {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            JobDetailsScreen(bookingId: selected.id),
-                      ),
-                    );
-                  } else {
-                    openJobWorkflowStep(
-                      context,
-                      bookingId: selected.id,
-                      status: selected.status,
-                      workflowState: selected.workflowState,
-                      customerName: selected.customerName,
-                    );
-                  }
-                } else {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => JobDetailsScreen(bookingId: selected.id),
-                    ),
-                  );
-                }
-              },
+              fullWidth: false,
+              onTap: () => _openJobFromIndex(i),
             ),
             if (i < _upcomingJobs.length - 1) const SizedBox(width: 12),
           ],
@@ -1201,162 +1239,222 @@ class _DetailRow extends StatelessWidget {
 }
 
 class _UpcomingJobCard extends StatelessWidget {
-  const _UpcomingJobCard({required this.job, required this.onTap});
+  const _UpcomingJobCard({
+    required this.job,
+    required this.onTap,
+    this.fullWidth = false,
+  });
 
   final UpcomingJobModel job;
   final VoidCallback onTap;
+  /// When true the card expands to fill the available width (single-card layout).
+  final bool fullWidth;
 
   @override
   Widget build(BuildContext context) {
-    // Determine presentation state and colors
-    final statusSource = job.displayState.isNotEmpty
-        ? job.displayState
-        : job.dayLabel;
+    final statusSource =
+        job.displayState.isNotEmpty ? job.displayState : job.dayLabel;
+
     String normalize(String src) {
       final n = src.trim().toLowerCase();
       if (n.contains('today')) return 'Today';
       if (n.contains('tomorrow')) return 'Tomorrow';
+      if (n.contains('in progress') || n.contains('in_progress')) {
+        return 'In Progress';
+      }
       if (n.contains('cancel')) return 'Cancelled';
       return 'Upcoming';
     }
 
     final statusText = normalize(statusSource);
+
     final borderColor = statusText.toLowerCase() == 'today'
         ? const Color(0xFF22C55E)
         : statusText.toLowerCase() == 'tomorrow'
-        ? const Color(0xFF0EA5E9)
-        : statusText.toLowerCase().contains('cancel')
-        ? const Color(0xFFEF4444)
-        : const Color(0xFFF97316);
+            ? const Color(0xFF0EA5E9)
+            : statusText.toLowerCase().contains('cancel')
+                ? const Color(0xFFEF4444)
+                : statusText.toLowerCase().contains('progress')
+                    ? const Color(0xFFF9B208)
+                    : const Color(0xFFF97316);
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Stack(
-        clipBehavior: Clip.none,
+    final cardContent = Container(
+      width: fullWidth ? double.infinity : 290,
+      padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor, width: 1.3),
+        boxShadow: [
+          BoxShadow(
+            color: borderColor.withValues(alpha: 0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Positioned(
-            top: -18,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
+          // ── Customer row ──────────────────────────────────────────────────
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF0B2545),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.person_outline,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      job.customerName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF101828),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.star,
+                          color: Color(0xFFF59E0B),
+                          size: 13,
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          job.displayRating,
+                          style: const TextStyle(
+                            color: Color(0xFF475467),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              // Service badge
+              Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
+                  horizontal: 10,
+                  vertical: 5,
                 ),
                 decoration: BoxDecoration(
-                  color: borderColor,
-                  borderRadius: BorderRadius.circular(10),
+                  color: const Color(0xFF0B2545),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  statusText,
+                  job.serviceName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
                   ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // ── Info rows ─────────────────────────────────────────────────────
+          _infoRow(Icons.calendar_month_outlined, job.displaySchedule),
+          const SizedBox(height: 5),
+          _infoRow(Icons.access_time_outlined, _durationLine),
+          const SizedBox(height: 5),
+          _infoRow(Icons.location_on_outlined, job.displayAddress),
+          const SizedBox(height: 14),
+          // ── Amount + View Details ─────────────────────────────────────────
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                _amountLabel,
+                style: const TextStyle(
+                  color: Color(0xFF111827),
+                  fontSize: 26,
+                  fontWeight: FontWeight.w700,
+                  height: 1.0,
+                ),
+              ),
+              SizedBox(
+                height: 34,
+                child: ElevatedButton(
+                  onPressed: onTap,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF5B6472),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    'View Details',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        // Card must be first so the badge renders on top of it
+        cardContent,
+        // Status badge floats above the card border, centered at the top
+        Positioned(
+          top: -14,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 5,
+              ),
+              decoration: BoxDecoration(
+                color: borderColor,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                statusText,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
           ),
-          Container(
-            width: 278,
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFFFFF),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: borderColor),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 34,
-                      height: 34,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF0B2545),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.person_outline,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            job.customerName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Color(0xFF101828),
-                              fontSize: 17,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 1),
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.star,
-                                color: Color(0xFFF59E0B),
-                                size: 14,
-                              ),
-                              const SizedBox(width: 2),
-                              Text(
-                                job.displayRating,
-                                style: const TextStyle(
-                                  color: Color(0xFF101828),
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w400,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0B2545),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        job.serviceName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                _infoRow(Icons.calendar_month_outlined, job.displaySchedule),
-                const SizedBox(height: 6),
-                _infoRow(Icons.access_time_outlined, _durationLine),
-                const SizedBox(height: 6),
-                _infoRow(Icons.currency_rupee, _rateLine),
-              ],
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1364,43 +1462,38 @@ class _UpcomingJobCard extends StatelessWidget {
     final raw = job.displayDuration.trim();
     if (raw.isEmpty || raw == '—') return '—';
     final lower = raw.toLowerCase();
-    if (lower.contains('duration')) return raw;
-    return '$raw duration';
-  }
-
-  String get _rateLine {
-    final raw = job.displayAmount.trim();
-    if (raw.isEmpty || raw == '—') return '—';
-    final lower = raw.toLowerCase();
-    if (lower.contains('hour') ||
-        lower.contains('/hr') ||
-        lower.contains('/hour')) {
+    if (lower.contains('hour') || lower.contains('hr') ||
+        lower.contains('duration')) {
       return raw;
     }
-    return '$raw per hour';
+    return '$raw hours';
+  }
+
+  String get _amountLabel {
+    final raw = job.displayAmount.trim();
+    if (raw.isEmpty || raw == '—') return '₹0';
+    if (raw.startsWith('₹') || raw.startsWith('Rs')) return raw;
+    return '₹$raw';
   }
 
   Widget _infoRow(IconData icon, String text) {
-    return Padding(
-      padding: EdgeInsets.zero,
-      child: Row(
-        children: [
-          Icon(icon, size: 17, color: const Color(0xFF1F2937)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF1F2937),
-                fontWeight: FontWeight.w400,
-              ),
+    return Row(
+      children: [
+        Icon(icon, size: 15, color: const Color(0xFF344054)),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 12.5,
+              color: Color(0xFF475467),
+              fontWeight: FontWeight.w400,
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

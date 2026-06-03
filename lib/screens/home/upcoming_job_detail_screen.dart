@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/job_detail_model.dart';
 import '../../providers/partner_provider.dart';
 import '../../utils/toast_helper.dart';
+import 'start_job_otp_screen.dart';
 
 class UpcomingJobDetailScreen extends ConsumerStatefulWidget {
   const UpcomingJobDetailScreen({
@@ -69,12 +70,12 @@ class _UpcomingJobDetailScreenState
     return services
         .map(
           (service) => _ServiceDetailItem(
-            name: service.name,
-            included: service.included,
-            notIncluded: service.notIncluded,
-            requirements: service.requirements,
-          ),
-        )
+        name: service.name,
+        included: service.included,
+        notIncluded: service.notIncluded,
+        requirements: service.requirements,
+      ),
+    )
         .toList();
   }
 
@@ -103,21 +104,12 @@ class _UpcomingJobDetailScreenState
     late final Uri mapsSearchUri;
 
     if (hasCoordinates) {
-      final latLng = '$lat,$lng';
-      mapsDirectionsUri = Uri.parse(
-        'https://www.google.com/maps/dir/?api=1&destination=$latLng',
-      );
-      mapsSearchUri = Uri.parse(
-        'https://www.google.com/maps/search/?api=1&query=$latLng',
-      );
+      mapsDirectionsUri = Uri.parse('http://maps.google.com/maps?daddr=$lat,$lng');
+      mapsSearchUri = Uri.parse('http://maps.google.com/maps?q=$lat,$lng');
     } else {
       final encoded = Uri.encodeComponent(locationQuery);
-      mapsDirectionsUri = Uri.parse(
-        'https://www.google.com/maps/dir/?api=1&destination=$encoded',
-      );
-      mapsSearchUri = Uri.parse(
-        'https://www.google.com/maps/search/?api=1&query=$encoded',
-      );
+      mapsDirectionsUri = Uri.parse('http://maps.google.com/maps?daddr=$encoded');
+      mapsSearchUri = Uri.parse('http://maps.google.com/maps?q=$encoded');
     }
 
     try {
@@ -133,9 +125,9 @@ class _UpcomingJobDetailScreenState
       );
       if (openedSearch) return;
     } on PlatformException {
-      // Can happen right after adding a new plugin until app is fully restarted.
+      // Handle exception
     } catch (_) {
-      // Fall through to user-facing message.
+      // Fall through
     }
 
     if (context.mounted) {
@@ -154,81 +146,30 @@ class _UpcomingJobDetailScreenState
     if (_isLoading) {
       return Scaffold(
         backgroundColor: const Color(0xFFF2F4F7),
-        appBar: PreferredSize(
-          preferredSize: const Size.fromHeight(110),
-          child: ClipRRect(
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(24),
-              bottomRight: Radius.circular(24),
-            ),
-            child: AppBar(
-              elevation: 0,
-              backgroundColor: const Color(0xFF1B3A52),
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-              title: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Job Details',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+        body: Column(
+          children: [
+            _buildCustomCurvedAppBar(title: 'Job Details', subtitle: null),
+            const Expanded(child: _JobDetailSkeleton()),
+          ],
         ),
-        body: const _JobDetailSkeleton(),
       );
     }
 
     if (_errorMessage != null || _jobDetail == null) {
       return Scaffold(
         backgroundColor: const Color(0xFFF2F4F7),
-        appBar: PreferredSize(
-          preferredSize: const Size.fromHeight(110),
-          child: ClipRRect(
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(24),
-              bottomRight: Radius.circular(24),
-            ),
-            child: AppBar(
-              elevation: 0,
-              backgroundColor: const Color(0xFF1B3A52),
-              leading: IconButton(
-                icon:
-                    const Icon(Icons.arrow_back, color: Colors.white, size: 24),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-              title: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Job Details',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
+        body: Column(
+          children: [
+            _buildCustomCurvedAppBar(title: 'Job Details', subtitle: null),
+            Expanded(
+              child: Center(
+                child: Text(
+                  _errorMessage ?? 'Failed to load job details',
+                  style: const TextStyle(fontSize: 16),
+                ),
               ),
             ),
-          ),
-        ),
-        body: Center(
-          child: Text(
-            _errorMessage ?? 'Failed to load job details',
-            style: const TextStyle(fontSize: 16),
-          ),
+          ],
         ),
       );
     }
@@ -236,35 +177,80 @@ class _UpcomingJobDetailScreenState
     final job = _jobDetail!;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F4F7),
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(110),
-        child: ClipRRect(
-          borderRadius: const BorderRadius.only(
-            bottomLeft: Radius.circular(24),
-            bottomRight: Radius.circular(24),
+      backgroundColor: const Color(0xFFF7F9FC),
+      bottomNavigationBar: _actionButtons(),
+      body: Column(
+        children: [
+          _buildCustomCurvedAppBar(
+            title: 'Job Details',
+            subtitle: job.id.toString(),
           ),
-          child: AppBar(
-            elevation: 0,
-            backgroundColor: const Color(0xFF1B3A52),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
-              onPressed: () => Navigator.of(context).pop(),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 16),
+              child: Column(
+                children: [
+                  _serviceDetailsCard(),
+                  const SizedBox(height: 12),
+                  _customerDetailsCard(),
+                  const SizedBox(height: 12),
+                  _serviceLocationCard(context),
+                  const SizedBox(height: 12),
+                  _timingCard(),
+                  const SizedBox(height: 12),
+                  _paymentDetailsCard(),
+                  const SizedBox(height: 8),
+                ],
+              ),
             ),
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Job Details',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCustomCurvedAppBar({required String title, String? subtitle}) {
+    final double statusBarHeight = MediaQuery.of(context).padding.top;
+    return Container(
+      padding: EdgeInsets.fromLTRB(8, statusBarHeight + 12, 16, 20),
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        color: Color(0xFF0B2240),
+        borderRadius: BorderRadius.vertical(
+          bottom: Radius.circular(24),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          )
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white, size: 22),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          const SizedBox(width: 4),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
                 ),
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
                 Text(
-                  job.id.toString(),
+                  subtitle,
                   style: const TextStyle(
                     color: Color(0xFFA0A9B3),
                     fontSize: 12,
@@ -272,27 +258,9 @@ class _UpcomingJobDetailScreenState
                   ),
                 ),
               ],
-            ),
+            ],
           ),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
-        child: Column(
-          children: [
-            _serviceDetailsCard(),
-            const SizedBox(height: 12),
-            _customerDetailsCard(),
-            const SizedBox(height: 12),
-            _serviceLocationCard(context),
-            const SizedBox(height: 12),
-            _timingCard(),
-            const SizedBox(height: 12),
-            _paymentDetailsCard(),
-            const SizedBox(height: 16),
-            _actionButtons(),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -302,77 +270,110 @@ class _UpcomingJobDetailScreenState
     final job = _jobDetail!;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          )
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.design_services_outlined, 
-                color: Color(0xFF667085), size: 18),
+              const Icon(Icons.business_center_outlined,
+                  color: Color(0xFF1B3A52), size: 20),
               const SizedBox(width: 10),
               const Text(
                 'Service Details',
                 style: TextStyle(
                   color: Color(0xFF101828),
-                  fontSize: 13,
+                  fontSize: 15,
                   fontWeight: FontWeight.w700,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           _detailRow('Booking ID', job.id.toString()),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           _detailRow('Category Name', job.category.name),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Duration',
-                      style: TextStyle(
-                        color: Color(0xFF667085),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      job.duration,
-                      style: const TextStyle(
-                        color: Color(0xFF101828),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+              const Text(
+                'Duration',
+                style: TextStyle(
+                  color: Color(0xFF667085),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
-              GestureDetector(
-                onTap: _serviceDetails.isEmpty ? null : _showServiceDetails,
-                child: Text(
-                  'View Detail',
-                  style: TextStyle(
-                    color: _serviceDetails.isEmpty
-                        ? const Color(0xFF98A2B3)
-                        : const Color(0xFF60A5FA),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    decoration: _serviceDetails.isEmpty
-                        ? TextDecoration.none
-                        : TextDecoration.underline,
-                    decorationColor: const Color(0xFF60A5FA),
+              Row(
+                children: [
+                  Text(
+                    (job.duration?.trim().isNotEmpty ?? false)
+                        ? job.duration!
+                        : "-",
+                    style: const TextStyle(
+                      color: Color(0xFF101828),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
+                  const SizedBox(width: 16),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Service Detail',
+                style: TextStyle(
+                  color: Color(0xFF667085),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
                 ),
+              ),
+              Row(
+                children: [
+                  Text(
+                    job.duration,
+                    style: const TextStyle(
+                      color: Color(0xFF101828),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  GestureDetector(
+                    onTap: _serviceDetails.isEmpty ? null : _showServiceDetails,
+                    child: Text(
+                      'View Detail',
+                      style: TextStyle(
+                        color: _serviceDetails.isEmpty
+                            ? const Color(0xFF98A2B3)
+                            : const Color(0xFF0EA5E9),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        decoration: _serviceDetails.isEmpty
+                            ? TextDecoration.none
+                            : TextDecoration.underline,
+                        decorationColor: const Color(0xFF0EA5E9),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -440,54 +441,6 @@ class _UpcomingJobDetailScreenState
     );
   }
 
-  Widget _servicesList() {
-    if (_jobDetail == null) return const SizedBox.shrink();
-    final job = _jobDetail!;
-    if (job.services.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Divider(color: Color(0xFFEAECF0), height: 12),
-        const Text(
-          'Service detail',
-          style: TextStyle(
-            color: Color(0xFF667085),
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 6),
-        ...job.services.map((service) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    '${service.name} (x${service.quantity})',
-                    style: const TextStyle(
-                      color: Color(0xFF475467),
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-                Text(
-                  '₹${(service.price * service.quantity).toInt()}',
-                  style: const TextStyle(
-                    color: Color(0xFF101828),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      ],
-    );
-  }
-
   Widget _detailRow(String label, String value) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -496,7 +449,7 @@ class _UpcomingJobDetailScreenState
           label,
           style: const TextStyle(
             color: Color(0xFF667085),
-            fontSize: 11,
+            fontSize: 13,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -504,7 +457,7 @@ class _UpcomingJobDetailScreenState
           value,
           style: const TextStyle(
             color: Color(0xFF101828),
-            fontSize: 12,
+            fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -515,54 +468,60 @@ class _UpcomingJobDetailScreenState
   Widget _customerDetailsCard() {
     if (_jobDetail == null) return const SizedBox.shrink();
     final job = _jobDetail!;
-    final firstLetter = job.customer.name.isNotEmpty 
-        ? job.customer.name[0].toUpperCase() 
-        : 'C';
-    final helperLetter = job.helper.name.isNotEmpty 
-        ? job.helper.name[0].toUpperCase() 
-        : 'H';
+    final firstLetter =
+    job.customer.name.isNotEmpty ? job.customer.name[0].toUpperCase() : 'C';
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          )
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.person_outline, 
-                color: Color(0xFF667085), size: 18),
+              const Icon(
+                Icons.person_outline,
+                color: Color(0xFF667085),
+                size: 20,
+              ),
               const SizedBox(width: 10),
               const Text(
                 'Customer Details',
                 style: TextStyle(
                   color: Color(0xFF101828),
-                  fontSize: 13,
+                  fontSize: 15,
                   fontWeight: FontWeight.w700,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Row(
             children: [
               CircleAvatar(
-                radius: 20,
-                backgroundColor: const Color(0xFF1B3A52),
+                radius: 22,
+                backgroundColor: const Color(0xFF0B2240),
                 child: Text(
                   firstLetter,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 16,
+                    fontSize: 17,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -571,21 +530,26 @@ class _UpcomingJobDetailScreenState
                       job.customer.name,
                       style: const TextStyle(
                         color: Color(0xFF101828),
-                        fontSize: 14,
+                        fontSize: 15,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 3),
                     Row(
                       children: [
-                        const Icon(Icons.star, 
-                          color: Color(0xFFFDB022), size: 14),
+                        const Icon(
+                          Icons.star,
+                          color: Color(0xFFFDB022),
+                          size: 14,
+                        ),
                         const SizedBox(width: 4),
                         Text(
-                          job.helper.rating.toStringAsFixed(1),
+                          job.helper.rating % 1 == 0
+                              ? job.helper.rating.toStringAsFixed(0)
+                              : job.helper.rating.toStringAsFixed(1),
                           style: const TextStyle(
                             color: Color(0xFF475467),
-                            fontSize: 12,
+                            fontSize: 13,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -594,15 +558,46 @@ class _UpcomingJobDetailScreenState
                   ],
                 ),
               ),
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: const Color(0xFF0EA5E9),
-                child: Text(
-                  helperLetter,
-                  style: const TextStyle(
+              GestureDetector(
+                onTap: () async {
+                  final phone = job.customer.phone.trim();
+                  if (phone.isEmpty) return;
+                  final uri = Uri(scheme: 'tel', path: phone);
+                  await launchUrl(uri);
+                },
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF0B2240),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.call,
                     color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    size: 18,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              GestureDetector(
+                onTap: () async {
+                  final phone = job.customer.phone.trim();
+                  if (phone.isEmpty) return;
+                  final uri = Uri(scheme: 'sms', path: phone);
+                  await launchUrl(uri);
+                },
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF97316),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.chat_bubble,
+                    color: Colors.white,
+                    size: 18,
                   ),
                 ),
               ),
@@ -618,60 +613,65 @@ class _UpcomingJobDetailScreenState
     final job = _jobDetail!;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          )
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.location_on_outlined, 
-                color: Color(0xFF667085), size: 18),
+              const Icon(Icons.location_on_outlined,
+                  color: Color(0xFF0B2240), size: 20),
               const SizedBox(width: 10),
               const Text(
                 'Service Location',
                 style: TextStyle(
                   color: Color(0xFF101828),
-                  fontSize: 13,
+                  fontSize: 16,
                   fontWeight: FontWeight.w700,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Text(
             job.location.full,
             style: const TextStyle(
-              color: Color(0xFF475467),
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
+              color: Color(0xFF101828),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
+          // UPDATED: Now uses the same Color(0xFF0EA5E9) as the "View Detail" text
           SizedBox(
             width: double.infinity,
-            height: 38,
-            child: ElevatedButton.icon(
+            height: 44,
+            child: OutlinedButton.icon(
               onPressed: () => _openGoogleMaps(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: const Color(0xFF0EA5E9),
-                elevation: 0,
-                side: const BorderSide(color: Color(0xFFD0D5DD), width: 1),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFFBAE6FD), width: 1), // Light sky blue to match
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
-                padding: EdgeInsets.zero,
               ),
-              icon: const Icon(Icons.check_circle_outline, size: 16),
+              icon: const Icon(Icons.near_me_outlined, size: 18, color: Color(0xFF0EA5E9)),
               label: const Text(
                 'Get Directions',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
+                  color: Color(0xFF0EA5E9), // Exact match to View Detail text
                 ),
               ),
             ),
@@ -686,57 +686,67 @@ class _UpcomingJobDetailScreenState
     final job = _jobDetail!;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          )
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.schedule_outlined, 
-                color: Color(0xFF667085), size: 18),
+              const Icon(Icons.calendar_today_outlined,
+                  color: Color(0xFF667085), size: 18),
               const SizedBox(width: 10),
               const Text(
                 'Timing',
                 style: TextStyle(
                   color: Color(0xFF101828),
-                  fontSize: 13,
+                  fontSize: 15,
                   fontWeight: FontWeight.w700,
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 14),
+          _timingRow(Icons.calendar_month_outlined, 'Date', job.date),
           const SizedBox(height: 12),
-          _timingRow('Date', job.date),
-          const SizedBox(height: 10),
-          _timingRow('Time', job.time),
-          const SizedBox(height: 10),
-          _timingRow('Total Duration', job.duration),
+          _timingRow(Icons.access_time, 'Time', job.time),
+          const SizedBox(height: 12),
+          _timingRow(Icons.hourglass_empty, 'Total Duration', job.duration),
         ],
       ),
     );
   }
 
-  Widget _timingRow(String label, String value) {
+  Widget _timingRow(IconData icon, String label, String value) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Color(0xFF667085),
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
+        Icon(icon, size: 16, color: const Color(0xFF98A2B3)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF667085),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
         Text(
           value,
           style: const TextStyle(
             color: Color(0xFF101828),
-            fontSize: 12,
+            fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -753,34 +763,44 @@ class _UpcomingJobDetailScreenState
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          )
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.payment_outlined, 
-                color: Color(0xFF667085), size: 18),
+              const Icon(Icons.account_balance_wallet_outlined,
+                  color: Color(0xFF667085), size: 20),
               const SizedBox(width: 10),
               const Text(
                 'Payment Details',
                 style: TextStyle(
                   color: Color(0xFF101828),
-                  fontSize: 13,
+                  fontSize: 15,
                   fontWeight: FontWeight.w700,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           _paymentRow('Service Charge', '₹$serviceCharge'),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _paymentRow('Tax & Fee', '₹$tax'),
-          const Divider(color: Color(0xFFEAECF0), height: 12),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: Divider(color: Color(0xFFEAECF0), height: 1),
+          ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -788,7 +808,7 @@ class _UpcomingJobDetailScreenState
                 'Total Amount',
                 style: TextStyle(
                   color: Color(0xFF101828),
-                  fontSize: 12,
+                  fontSize: 15,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -796,7 +816,7 @@ class _UpcomingJobDetailScreenState
                 '₹${totalAmount.toInt()}',
                 style: const TextStyle(
                   color: Color(0xFF101828),
-                  fontSize: 14,
+                  fontSize: 16,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -815,7 +835,7 @@ class _UpcomingJobDetailScreenState
           label,
           style: const TextStyle(
             color: Color(0xFF667085),
-            fontSize: 11,
+            fontSize: 13,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -823,7 +843,7 @@ class _UpcomingJobDetailScreenState
           value,
           style: const TextStyle(
             color: Color(0xFF101828),
-            fontSize: 12,
+            fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -833,58 +853,74 @@ class _UpcomingJobDetailScreenState
 
   Widget _actionButtons() {
     if (_jobDetail == null) return const SizedBox.shrink();
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () {
-              // Handle Report Issue
-            },
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+    return Container(
+      color: Colors.white,
+      padding: EdgeInsets.fromLTRB(
+        16,
+        12,
+        16,
+        MediaQuery.of(context).padding.bottom + 12,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () {
+                // TODO: Handle Report Issue
+              },
+              style: OutlinedButton.styleFrom(
+                backgroundColor: const Color(0xFFFFF1F2),
+                side: const BorderSide(color: Color(0xFFFDA4AF), width: 1),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-              padding: const EdgeInsets.symmetric(vertical: 10),
-            ),
-            icon: const Icon(Icons.report_problem_outlined, 
-              color: Color(0xFFEF4444), size: 16),
-            label: const Text(
-              'Report Issue',
-              style: TextStyle(
-                color: Color(0xFFEF4444),
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: () {
-              // Handle Start
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1B3A52),
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(vertical: 10),
-            ),
-            icon: const Icon(Icons.play_arrow, size: 16),
-            label: const Text(
-              'Start',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
+              child: const Text(
+                'Report Issue',
+                style: TextStyle(
+                  color: Color(0xFFE11D48),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                ),
               ),
             ),
           ),
-        ),
-      ],
+          const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () {
+                final job = _jobDetail;
+                if (job == null) return;
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => StartJobOtpScreen(
+                      bookingId: job.id,
+                      customerName: job.customer.name,
+                    ),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0B2240),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              child: const Text(
+                'Start',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1155,21 +1191,21 @@ class _ServiceDetailCardState extends State<_ServiceDetailCard> {
           children: items
               .map(
                 (text) => Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: background,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    text,
-                    style: TextStyle(
-                      color: foreground,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: background,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                text,
+                style: TextStyle(
+                  color: foreground,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
                 ),
-              )
+              ),
+            ),
+          )
               .toList(),
         ),
       ],
@@ -1205,7 +1241,7 @@ class _RequirementsCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           ...items.map(
-            (text) => Padding(
+                (text) => Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
