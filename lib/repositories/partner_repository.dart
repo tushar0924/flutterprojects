@@ -115,6 +115,7 @@ class PartnerRepository {
     String pinCode = '',
     required String serviceArea,
     required bool hasExperience,
+    int? experienceYears,
     required List<int> serviceIds,
     String gender = '',
     List<String> workTypes = const [],
@@ -126,7 +127,7 @@ class PartnerRepository {
       'phone': phone,
       'address': serviceArea,
       'hasExperience': hasExperience,
-      'serviceIds': serviceIds,
+      'experienceYears': experienceYears ?? 0,
       'categoryIds': serviceIds,
     };
     if (gender.isNotEmpty) payload['gender'] = gender;
@@ -262,6 +263,37 @@ class PartnerRepository {
   }
 
   // ── Earnings ─────────────────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> uploadAdditionalIdentityDocument({
+    required String documentType,
+    required String fullName,
+    required File file,
+  }) async {
+    try {
+      final formData = FormData.fromMap({
+        'documentType': documentType,
+        'fullName': fullName,
+        'file': await MultipartFile.fromFile(
+          file.path,
+          filename: _fileNameFromPath(file.path),
+        ),
+      });
+      final res = await _client.post(
+        PartnerApiEndpoint.uploadAdditionalDocument,
+        data: formData,
+      );
+      return (res.data as Map<String, dynamic>?) ?? {};
+    } on DioException catch (e) {
+      return <String, dynamic>{
+        'success': false,
+        'message': _extractErrorMessage(
+          e,
+          fallback: 'Failed to upload additional identity document',
+        ),
+        'statusCode': e.response?.statusCode,
+      };
+    }
+  }
 
   /// GET /api/partner/earnings/summary
   Future<Map<String, dynamic>> getEarningsSummary() async {

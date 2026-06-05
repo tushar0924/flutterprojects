@@ -96,6 +96,7 @@ class _OnboardingStep5State extends ConsumerState<OnboardingStep5> {
       appBar: AppBar(
         backgroundColor: pageNavy,
         elevation: 0,
+        toolbarHeight: 0,
         leading: const SizedBox.shrink(), // no back — awaiting admin review
       ),
       body: SafeArea(
@@ -217,6 +218,7 @@ class _OnboardingStep5State extends ConsumerState<OnboardingStep5> {
                               color: const Color(0xFF12B76A),
                               icon: Icons.check_circle,
                               showLine: true,
+                              lineColor: const Color(0xFF12B76A),
                             ),
                             _buildTimelineItem(
                               title: 'Documents Uploaded',
@@ -224,6 +226,16 @@ class _OnboardingStep5State extends ConsumerState<OnboardingStep5> {
                               color: const Color(0xFF12B76A),
                               icon: Icons.check_circle,
                               showLine: true,
+                              lineColor: const Color(0xFF12B76A),
+                            ),
+                            _buildTimelineItem(
+                              title: 'Team Will Contact You',
+                              subtitle:
+                                  'Our team will call you soon for training and onboarding\n\nTraining will be conducted at our center',
+                              color: const Color(0xFF2F80ED),
+                              icon: Icons.phone,
+                              showLine: true,
+                              highlighted: true,
                             ),
                             _buildTimelineItem(
                               title: 'Admin Verification',
@@ -256,48 +268,33 @@ class _OnboardingStep5State extends ConsumerState<OnboardingStep5> {
                       const SizedBox(height: 14),
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.all(14),
+                        padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
                           color: const Color(0xFFEEF4FF),
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(color: const Color(0xFFD0D5FF)),
                         ),
-                        child: Row(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
-                            const Padding(
-                              padding: EdgeInsets.only(top: 2),
-                              child: Icon(
-                                Icons.info_outline,
-                                size: 18,
+                            const Text(
+                              'Expected Timeline',
+                              style: TextStyle(
                                 color: Color(0xFF155EEF),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: <Widget>[
-                                  const Text(
-                                    'Expected Timeline',
-                                    style: TextStyle(
-                                      color: Color(0xFF0B4A6F),
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    isRejected
-                                        ? 'Please re-upload the required details and documents for a fresh review.'
-                                        : 'In production, KYC verification takes 24-48 hours via IDFY API.',
-                                    style: const TextStyle(
-                                      color: Color(0xFF175CD3),
-                                      fontSize: 11,
-                                      height: 1.45,
-                                    ),
-                                  ),
-                                ],
+                            const SizedBox(height: 10),
+                            Text(
+                              isRejected
+                                  ? 'Please re-upload the required details and documents for a fresh review.'
+                                  : 'KYC verification takes 24-48 hours',
+                              style: const TextStyle(
+                                color: Color(0xFF155EEF),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                height: 1.45,
                               ),
                             ),
                           ],
@@ -326,13 +323,21 @@ class _OnboardingStep5State extends ConsumerState<OnboardingStep5> {
                             _buildHelpTile(
                               icon: Icons.phone_outlined,
                               title: 'Call Support',
-                              subtitle: '+91 1234567896',
+                              subtitle: '+91 7073448187',
+                              backgroundColor: const Color(0xFFEFFDF5),
+                              iconBackgroundColor: const Color(0xFFD7FBE8),
+                              iconColor: const Color(0xFF12B76A),
+                              subtitleColor: const Color(0xFF039855),
                             ),
                             const SizedBox(height: 10),
                             _buildHelpTile(
                               icon: Icons.email_outlined,
                               title: 'Email Support',
                               subtitle: 'support@helperr4u.com',
+                              backgroundColor: const Color(0xFFEFF6FF),
+                              iconBackgroundColor: const Color(0xFFDCEBFF),
+                              iconColor: const Color(0xFF2F80ED),
+                              subtitleColor: const Color(0xFF155EEF),
                             ),
                           ],
                         ),
@@ -417,6 +422,7 @@ class _OnboardingStep5State extends ConsumerState<OnboardingStep5> {
     required IconData icon,
     required bool showLine,
     Color lineColor = const Color(0xFFD0D5DD),
+    bool highlighted = false,
   }) {
     return IntrinsicHeight(
       child: Row(
@@ -424,7 +430,12 @@ class _OnboardingStep5State extends ConsumerState<OnboardingStep5> {
         children: <Widget>[
           Column(
             children: <Widget>[
-              Icon(icon, size: 22, color: color),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                child: Icon(icon, size: 18, color: Colors.white),
+              ),
               if (showLine)
                 Expanded(
                   child: Container(
@@ -437,8 +448,16 @@ class _OnboardingStep5State extends ConsumerState<OnboardingStep5> {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 16),
+            child: Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: highlighted ? const EdgeInsets.all(14) : EdgeInsets.zero,
+              decoration: highlighted
+                  ? BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(12),
+                    )
+                  : null,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
@@ -471,35 +490,53 @@ class _OnboardingStep5State extends ConsumerState<OnboardingStep5> {
     required IconData icon,
     required String title,
     required String subtitle,
+    Color backgroundColor = const Color(0xFFF9FAFB),
+    Color iconBackgroundColor = const Color(0xFFEFF2F5),
+    Color iconColor = const Color(0xFF101828),
+    Color subtitleColor = const Color(0xFF667085),
   }) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF9FAFB),
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: <Widget>[
-          Icon(icon, size: 18, color: const Color(0xFF101828)),
-          const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Color(0xFF101828),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: iconBackgroundColor,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 18, color: iconColor),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Color(0xFF101828),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: const TextStyle(color: Color(0xFF667085), fontSize: 11),
-              ),
-            ],
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: subtitleColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

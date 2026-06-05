@@ -28,6 +28,8 @@ class PartnerApiEndpoint {
   static const String uploadPan = 'partner/kyc/upload-pan';
   static const String uploadAadhar = 'partner/kyc/upload-aadhar';
   static const String uploadPolice = 'partner/kyc/upload-police';
+  static const String uploadAdditionalDocument =
+      'partner/kyc/upload-additional-document';
 
   static const String earningsSummary = 'partner/earnings/summary';
   static const String earningsHistory = 'partner/earnings/history';
@@ -42,7 +44,7 @@ class PartnerApiEndpoint {
   static const String profile = 'partner/profile';
   static const String address = 'partner/address';
   static const String reviews = 'partner/reviews';
-  static const String categories = 'partner/categories';
+  static const String categories = 'categories';
   // Backward-compatible alias for older call sites.
   static const String services = categories;
 

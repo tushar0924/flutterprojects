@@ -20,10 +20,17 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
   static const Color _surface = Color(0xFFF2F3F5);
   static const Color _fieldBorder = Color(0xFFD9DEE6);
   static const Color _fieldFill = Color(0xFFF4F6F9);
+  static const Color _selectedChipBorder = Color(0xFF2CB7F6);
+  static const Color _selectedChipFill = Color(0xFFEAF8FF);
+  static const Color _selectedChipText = Color(0xFF075E9B);
 
   String? _gender;
   final Set<int> _selectedServiceIds = <int>{};
   String? _experience;
+  String? _yearsOfExperience;
+  bool _isDropdownOpen = false;
+  OverlayEntry? _dropdownOverlay;
+  final GlobalKey _dropdownKey = GlobalKey();
 
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -38,6 +45,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
   bool _isInitialLoading = true;
   bool _isSubmitting = false;
   bool _hasHydratedForm = false;
+  bool _isDisposed = false;
 
   @override
   void initState() {
@@ -51,6 +59,11 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
 
   @override
   void dispose() {
+    _isDisposed = true;
+    // Remove overlay first (before super.dispose) so it can still call
+    // context-dependent APIs safely.
+    _dropdownOverlay?.remove();
+    _dropdownOverlay = null;
     _nameController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
@@ -58,7 +71,9 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
   }
 
   Future<void> _loadInitialState() async {
-    await ref.read(partnerOnboardingProvider.notifier).bootstrapFromChooseRole();
+    await ref
+        .read(partnerOnboardingProvider.notifier)
+        .bootstrapFromChooseRole();
     if (!mounted) return;
 
     final onboarding = ref.read(partnerOnboardingProvider);
@@ -80,71 +95,35 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
     final profile = _readSavedProfile(onboarding);
     if (profile.isEmpty) return;
 
-    final savedAddress = _firstNonEmptyProfileString(
-      profile,
-      const <String>['address', 'serviceArea', 'fullAddress'],
-    );
-    final savedCity = _firstNonEmptyProfileString(
-      profile,
-      const <String>['city', 'district'],
-    );
-    final savedPinCode = _firstNonEmptyProfileString(
-      profile,
-      const <String>['pinCode', 'pincode', 'postalCode'],
-    );
-    final savedGender = _firstNonEmptyProfileString(
-      profile,
-      const <String>['gender', 'sex'],
-    );
+    // Address is intentionally NOT restored from cache/profile.
+    // The user must explicitly tap 'Add Address' each session.
+    // Only non-address fields are hydrated.
+
+    final savedGender = _firstNonEmptyProfileString(profile, const <String>[
+      'gender',
+      'sex',
+    ]);
     final savedExperience = _readExperience(profile);
-    final savedLatitude = _firstNonEmptyProfileDouble(
-      profile,
-      const <String>['latitude', 'lat'],
-    );
-    final savedLongitude = _firstNonEmptyProfileDouble(
-      profile,
-      const <String>['longitude', 'lng', 'lon'],
-    );
     final savedServiceIds = _readServiceIds(profile);
 
     if (_nameController.text.trim().isEmpty) {
-      final profileName = _firstNonEmptyProfileString(
-        profile,
-        const <String>['fullName', 'name'],
-      );
+      final profileName = _firstNonEmptyProfileString(profile, const <String>[
+        'fullName',
+        'name',
+      ]);
       if (profileName.isNotEmpty) {
         _nameController.text = profileName;
       }
     }
 
     if (_phoneController.text.trim().isEmpty) {
-      final profilePhone = _firstNonEmptyProfileString(
-        profile,
-        const <String>['phone', 'mobile'],
-      );
+      final profilePhone = _firstNonEmptyProfileString(profile, const <String>[
+        'phone',
+        'mobile',
+      ]);
       if (profilePhone.isNotEmpty) {
         _phoneController.text = _normalizePhone(profilePhone);
       }
-    }
-
-    if (savedAddress.isNotEmpty) {
-      _serviceAreaForSubmit = savedAddress;
-    }
-
-    if (_addressController.text.trim().isEmpty && savedAddress.isNotEmpty) {
-      _addressController.text = savedAddress;
-    }
-
-    if (_selectedCity.isEmpty) {
-      _selectedCity = savedCity.isNotEmpty
-          ? savedCity
-          : _resolveCityForPayload('', savedAddress);
-    }
-
-    if (_selectedPinCode.isEmpty) {
-      _selectedPinCode = savedPinCode.isNotEmpty
-          ? savedPinCode
-          : _extractPinCodeFromAddress(_addressController.text);
     }
 
     if (_gender == null) {
@@ -153,13 +132,6 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
 
     if (_experience == null) {
       _experience = savedExperience;
-    }
-
-    if (_capturedLatitude == null) {
-      _capturedLatitude = savedLatitude;
-    }
-    if (_capturedLongitude == null) {
-      _capturedLongitude = savedLongitude;
     }
 
     if (_selectedServiceIds.isEmpty && savedServiceIds.isNotEmpty) {
@@ -254,7 +226,8 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
   }
 
   String? _readExperience(Map<String, dynamic> profile) {
-    final raw = profile['experience'] ??
+    final raw =
+        profile['experience'] ??
         profile['hasExperience'] ??
         profile['isExperienced'] ??
         profile['previousExperience'];
@@ -291,19 +264,36 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
     return digits;
   }
 
+  int? _experienceYearsForPayload() {
+    final selectedYears = _yearsOfExperience;
+    if (_experience != 'Yes' || selectedYears == null) return null;
+
+    final match = RegExp(r'\d+').firstMatch(selectedYears);
+    return int.tryParse(match?.group(0) ?? '');
+  }
+
+  bool get _serviceSelectionOk {
+    final services = ref.read(partnerOnboardingProvider).availableServices;
+    return services.isEmpty || _selectedServiceIds.isNotEmpty;
+  }
+
   bool get _isFormReady {
     final name = _nameController.text.trim();
     final phone = _normalizePhone(_phoneController.text.trim());
     final address = _addressController.text.trim();
     final city = _resolveCityForPayload(_selectedCity, address);
+    final experienceOk =
+        _experience == 'No' ||
+        (_experience == 'Yes' && _yearsOfExperience != null);
     return name.isNotEmpty &&
         phone.length == 10 &&
         _gender != null &&
         _experience != null &&
+        experienceOk &&
         address.isNotEmpty &&
-      city.isNotEmpty &&
+        city.isNotEmpty &&
         _selectedPinCode.isNotEmpty &&
-        _selectedServiceIds.isNotEmpty &&
+        _serviceSelectionOk &&
         _capturedLatitude != null &&
         _capturedLongitude != null;
   }
@@ -383,11 +373,11 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
     final phone = _normalizePhone(_phoneController.text.trim());
     final address = _serviceAreaForSubmit.trim().isNotEmpty
         ? _serviceAreaForSubmit.trim()
-      : _addressController.text.trim();
+        : _addressController.text.trim();
     final city = _resolveCityForPayload(_selectedCity, address);
     final pinCode = _selectedPinCode.trim().isNotEmpty
         ? _selectedPinCode.trim()
-      : _extractPinCodeFromAddress(address);
+        : _extractPinCodeFromAddress(address);
 
     if (name.isEmpty) {
       _showMessage('Please enter your full name');
@@ -409,7 +399,8 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
       _showMessage('Please select address again to capture pin code');
       return;
     }
-    if (_selectedServiceIds.isEmpty) {
+    final services = ref.read(partnerOnboardingProvider).availableServices;
+    if (services.isNotEmpty && _selectedServiceIds.isEmpty) {
       _showMessage('Please select at least one category');
       return;
     }
@@ -419,6 +410,11 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
     }
     if (_experience == null) {
       _showMessage('Please select previous experience');
+      return;
+    }
+    final experienceYears = _experienceYearsForPayload();
+    if (_experience == 'Yes' && experienceYears == null) {
+      _showMessage('Please select years of experience');
       return;
     }
 
@@ -434,8 +430,8 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
       'latitude': _capturedLatitude,
       'longitude': _capturedLongitude,
       'hasExperience': _experience == 'Yes',
+      'experienceYears': experienceYears ?? 0,
       'categoryIds': _selectedServiceIds.toList(),
-      'serviceIds': _selectedServiceIds.toList(),
     };
     debugPrint('[Onboarding Step2] Submit payload: $requestPayload');
 
@@ -448,6 +444,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
           pinCode: pinCode,
           serviceArea: address,
           hasExperience: _experience == 'Yes',
+          experienceYears: experienceYears,
           serviceIds: _selectedServiceIds.toList(),
           gender: _gender?.toUpperCase() ?? '',
           workTypes: const <String>[],
@@ -491,24 +488,28 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
     final pinCode = (result['pinCode'] ?? result['postalCode'] ?? '')
         .toString()
         .trim();
-    final fullAddress =
-        (result['fullAddress'] ?? result['address'] ?? '').toString().trim();
+    final fullAddress = (result['fullAddress'] ?? result['address'] ?? '')
+        .toString()
+        .trim();
     final displayAddress = area.isNotEmpty
         ? area
         : _extractAreaLocalityFromAddress(fullAddress);
 
     setState(() {
-      final addressForInput =
-          fullAddress.isNotEmpty ? fullAddress : displayAddress;
+      final addressForInput = fullAddress.isNotEmpty
+          ? fullAddress
+          : displayAddress;
       if (addressForInput.isNotEmpty) {
         _addressController.text = addressForInput;
       }
 
-      _serviceAreaForSubmit =
-          fullAddress.isNotEmpty ? fullAddress : addressForInput;
+      _serviceAreaForSubmit = fullAddress.isNotEmpty
+          ? fullAddress
+          : addressForInput;
 
-      final citySource =
-          fullAddress.isNotEmpty ? fullAddress : _addressController.text;
+      final citySource = fullAddress.isNotEmpty
+          ? fullAddress
+          : _addressController.text;
       _selectedCity = _resolveCityForPayload(city, citySource);
       _selectedPinCode = pinCode.isNotEmpty
           ? pinCode
@@ -548,9 +549,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
 
     try {
       final result = await Navigator.of(context).push<Map<String, dynamic>>(
-        MaterialPageRoute(
-          builder: (_) => const EditAddressScreen(),
-        ),
+        MaterialPageRoute(builder: (_) => const EditAddressScreen()),
       );
 
       if (!mounted || result == null) return;
@@ -572,18 +571,18 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
         constraints: const BoxConstraints(minHeight: 40),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: selected ? _selectedChipFill : Colors.white,
           borderRadius: BorderRadius.circular(9),
           border: Border.all(
-            color: selected ? _navy : _fieldBorder,
-            width: selected ? 1.3 : 1,
+            color: selected ? _selectedChipBorder : _fieldBorder,
+            width: selected ? 1.5 : 1,
           ),
         ),
         child: Text(
           label,
           style: TextStyle(
             fontSize: 13.5,
-            color: const Color(0xFF2A3441),
+            color: selected ? _selectedChipText : const Color(0xFF2A3441),
             fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
           ),
         ),
@@ -607,18 +606,18 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
         alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: selected ? _selectedChipFill : Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: selected ? _navy : _fieldBorder,
-            width: selected ? 1.3 : 1,
+            color: selected ? _selectedChipBorder : _fieldBorder,
+            width: selected ? 1.5 : 1,
           ),
         ),
         child: Text(
           service.name,
           style: TextStyle(
             fontSize: 13,
-            color: const Color(0xFF2A3441),
+            color: selected ? _selectedChipText : const Color(0xFF2A3441),
             fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
           ),
         ),
@@ -653,11 +652,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
         children: [
           const Padding(
             padding: EdgeInsets.only(top: 2),
-            child: Icon(
-              Icons.location_on,
-              color: Color(0xFF0D9A55),
-              size: 20,
-            ),
+            child: Icon(Icons.location_on, color: Color(0xFF0D9A55), size: 20),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -705,11 +700,7 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
             borderRadius: BorderRadius.circular(18),
             child: const Padding(
               padding: EdgeInsets.all(2),
-              child: Icon(
-                Icons.edit,
-                color: Color(0xFF0B57D0),
-                size: 18,
-              ),
+              child: Icon(Icons.edit, color: Color(0xFF0B57D0), size: 18),
             ),
           ),
         ],
@@ -770,6 +761,197 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
     );
   }
 
+  static const List<String> _experienceYears = [
+    '1 Year',
+    '2 Years',
+    '3 Years',
+    '4 Years',
+    '5 Years',
+    '6 Years',
+    '7 Years',
+    '8 Years',
+    '9 Years',
+    '10 Years',
+    '10+ Years',
+  ];
+
+  void _removeDropdownOverlay() {
+    _dropdownOverlay?.remove();
+    _dropdownOverlay = null;
+    if (!_isDisposed && mounted) setState(() => _isDropdownOpen = false);
+  }
+
+  void _toggleExperienceDropdown() {
+    // Disabled when 'No' is selected
+    if (_experience == 'No') return;
+    if (_isDropdownOpen) {
+      _removeDropdownOverlay();
+      return;
+    }
+
+    final renderBox =
+        _dropdownKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+
+    final offset = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    // How many items and their height
+    const itemHeight = 48.0;
+    const maxDropdownHeight = 260.0;
+    final dropdownHeight = (_experienceYears.length * itemHeight).clamp(
+      0.0,
+      maxDropdownHeight,
+    );
+
+    // Show above if not enough space below
+    final spaceBelow = screenHeight - (offset.dy + size.height) - 16;
+    final showAbove = spaceBelow < dropdownHeight;
+
+    _dropdownOverlay = OverlayEntry(
+      builder: (ctx) {
+        return Stack(
+          children: [
+            // Transparent barrier to close on outside tap
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: _removeDropdownOverlay,
+                behavior: HitTestBehavior.translucent,
+                child: const SizedBox.expand(),
+              ),
+            ),
+            Positioned(
+              left: offset.dx,
+              top: showAbove
+                  ? offset.dy - dropdownHeight - 4
+                  : offset.dy + size.height + 4,
+              width: size.width,
+              child: Material(
+                elevation: 10,
+                borderRadius: BorderRadius.circular(12),
+                shadowColor: Colors.black26,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _fieldBorder),
+                  ),
+                  constraints: BoxConstraints(maxHeight: maxDropdownHeight),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: ListView.builder(
+                      padding: EdgeInsets.zero,
+                      shrinkWrap: true,
+                      itemCount: _experienceYears.length,
+                      itemBuilder: (_, i) {
+                        final year = _experienceYears[i];
+                        final isSelected = _yearsOfExperience == year;
+                        return InkWell(
+                          onTap: () {
+                            if (!_isDisposed && mounted) {
+                              setState(() => _yearsOfExperience = year);
+                            }
+                            _removeDropdownOverlay();
+                          },
+                          child: Container(
+                            height: itemHeight,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? const Color(0xFFEEF3FF)
+                                  : Colors.white,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  year,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: isSelected
+                                        ? _navy
+                                        : const Color(0xFF2A3441),
+                                    fontWeight: isSelected
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
+                                  ),
+                                ),
+                                if (isSelected)
+                                  const Icon(
+                                    Icons.check,
+                                    color: _navy,
+                                    size: 16,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    Overlay.of(context).insert(_dropdownOverlay!);
+    if (!_isDisposed && mounted) setState(() => _isDropdownOpen = true);
+  }
+
+  Widget _experienceDropdown() {
+    final isDisabled = _experience == 'No';
+    return GestureDetector(
+      key: _dropdownKey,
+      onTap: isDisabled ? null : _toggleExperienceDropdown,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        height: 50,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: isDisabled ? const Color(0xFFF4F6F9) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _isDropdownOpen ? _navy : _fieldBorder,
+            width: _isDropdownOpen ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              isDisabled
+                  ? 'Not applicable'
+                  : (_yearsOfExperience ?? 'Select Experience'),
+              style: TextStyle(
+                fontSize: 14,
+                color: isDisabled
+                    ? const Color(0xFFB0B8C1)
+                    : (_yearsOfExperience != null
+                          ? const Color(0xFF303A47)
+                          : const Color(0xFF8A93A1)),
+              ),
+            ),
+            AnimatedRotation(
+              turns: _isDropdownOpen ? 0.5 : 0,
+              duration: const Duration(milliseconds: 150),
+              child: Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: isDisabled
+                    ? const Color(0xFFB0B8C1)
+                    : const Color(0xFF8A93A1),
+                size: 22,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final onboarding = ref.watch(partnerOnboardingProvider);
@@ -787,264 +969,328 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
       child: Scaffold(
         backgroundColor: _surface,
         body: SafeArea(
-        child: Column(
-          children: <Widget>[
-            Container(
-              color: _navy,
-              padding: const EdgeInsets.fromLTRB(8, 12, 8, 14),
-              child: Row(
-                children: <Widget>[
-                  IconButton(
-                    onPressed: _showBackDialog,
-                    icon: const Icon(Icons.arrow_back, color: Colors.white),
-                  ),
-                  const SizedBox(width: 4),
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        'Helper Registration',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
+          child: Column(
+            children: <Widget>[
+              Container(
+                color: _navy,
+                padding: const EdgeInsets.fromLTRB(8, 12, 8, 14),
+                child: Row(
+                  children: <Widget>[
+                    IconButton(
+                      onPressed: _showBackDialog,
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                    ),
+                    const SizedBox(width: 4),
+                    const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          'Helper Registration',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        'Step 2 of 5 • Basic Information',
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ],
+                        SizedBox(height: 2),
+                        Text(
+                          'Step 2 of 5 • Basic Information',
+                          style: TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Expanded(
-              child: Container(
-                color: _surface,
-                child: busy
-                    ? const Center(child: CircularProgressIndicator())
-                    : LayoutBuilder(
-                        builder: (context, constraints) {
-                          return SingleChildScrollView(
-                            padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(
-                                minHeight: constraints.maxHeight - 24,
+              Expanded(
+                child: Container(
+                  color: _surface,
+                  child: busy
+                      ? const Center(child: CircularProgressIndicator())
+                      : LayoutBuilder(
+                          builder: (context, constraints) {
+                            return SingleChildScrollView(
+                              padding: const EdgeInsets.fromLTRB(
+                                12,
+                                10,
+                                12,
+                                14,
                               ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: <Widget>[
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: const Color(0xFFE5E8ED),
-                                      ),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: <Widget>[
-                                        _label('Full Name *'),
-                                        const SizedBox(height: 8),
-                                        _field(
-                                          controller: _nameController,
-                                          hint: 'Enter Your full name',
-                                          icon: Icons.person_outline,
-                                          onChanged: (_) => setState(() {}),
-                                        ),
-                                        const SizedBox(height: 14),
-                                        _label('Gender'),
-                                        const SizedBox(height: 8),
-                                        Row(
-                                          children: <Widget>[
-                                            SizedBox(
-                                              width: 106,
-                                              child: _toggleChip(
-                                                'Female',
-                                                _gender == 'Female',
-                                                () => setState(() => _gender = 'Female'),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 10),
-                                            SizedBox(
-                                              width: 106,
-                                              child: _toggleChip(
-                                                'Male',
-                                                _gender == 'Male',
-                                                () => setState(() => _gender = 'Male'),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 14),
-                                        _label('Phone Number *'),
-                                        const SizedBox(height: 8),
-                                        _field(
-                                          controller: _phoneController,
-                                          hint: '1234563215',
-                                          icon: Icons.phone_outlined,
-                                          keyboardType: TextInputType.phone,
-                                          readOnly: onboarding.phone.isNotEmpty,
-                                          onChanged: (_) => setState(() {}),
-                                        ),
-                                        const SizedBox(height: 14),
-                                        _label('Address *'),
-                                        const SizedBox(height: 8),
-                                        _addressController.text.trim().isEmpty
-                                            ? SizedBox(
-                                                width: double.infinity,
-                                                height: 46,
-                                                child: ElevatedButton(
-                                                  onPressed: _isCapturingLocation
-                                                      ? null
-                                                      : _openAddressMapPicker,
-                                                  style: ElevatedButton.styleFrom(
-                                                    backgroundColor: _navy,
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(10),
-                                                    ),
-                                                    elevation: 0,
-                                                  ),
-                                                  child: _isCapturingLocation
-                                                      ? const SizedBox(
-                                                          width: 20,
-                                                          height: 20,
-                                                          child:
-                                                              CircularProgressIndicator(
-                                                            color: Colors.white,
-                                                            strokeWidth: 2,
-                                                          ),
-                                                        )
-                                                      : const Text(
-                                                          'Add Address',
-                                                          style: TextStyle(
-                                                            color: Colors.white,
-                                                            fontWeight:
-                                                                FontWeight.w600,
-                                                            fontSize: 18,
-                                                          ),
-                                                        ),
-                                                ),
-                                              )
-                                            : _addressPreviewCard(),
-                                        const SizedBox(height: 20),
-                                        _label('Choose Category You Provide'),
-                                        const SizedBox(height: 10),
-                                        ...List.generate(
-                                            (services.length / 2).ceil(), (rowIdx) {
-                                          final left = services[rowIdx * 2];
-                                          final rightIdx = rowIdx * 2 + 1;
-                                          final right = rightIdx < services.length
-                                              ? services[rightIdx]
-                                              : null;
-                                          return Padding(
-                                            padding: const EdgeInsets.only(bottom: 8),
-                                            child: Row(
-                                              children: [
-                                                Expanded(child: _serviceChip(left)),
-                                                const SizedBox(width: 8),
-                                                right != null
-                                                    ? Expanded(child: _serviceChip(right))
-                                                    : const Expanded(child: SizedBox()),
-                                              ],
-                                            ),
-                                          );
-                                        }),
-                                        const SizedBox(height: 18),
-                                        _label('Do you have previous experience?'),
-                                        const SizedBox(height: 8),
-                                        Row(
-                                          children: <Widget>[
-                                            Expanded(
-                                              child: _toggleChip(
-                                                'Yes',
-                                                _experience == 'Yes',
-                                                () => setState(() => _experience = 'Yes'),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: _toggleChip(
-                                                'No',
-                                                _experience == 'No',
-                                                () => setState(() => _experience = 'No'),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 12),
-                                    child: SizedBox(
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  minHeight: constraints.maxHeight - 24,
+                                ),
+                                child: Column(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    Container(
                                       width: double.infinity,
-                                      height: 52,
-                                      child: ElevatedButton(
-                                        onPressed: (_isSubmitting || !_isFormReady)
-                                            ? null
-                                            : _submitProfile,
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: _isFormReady
-                                              ? _navy
-                                              : const Color(0xFF8492A0),
-                                          disabledBackgroundColor: const Color(0xFF8492A0),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(10),
-                                          ),
-                                          elevation: 0,
+                                      padding: const EdgeInsets.fromLTRB(
+                                        14,
+                                        14,
+                                        14,
+                                        16,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: const Color(0xFFE5E8ED),
                                         ),
-                                        child: _isSubmitting
-                                            ? const SizedBox(
-                                                width: 24,
-                                                height: 24,
-                                                child: CircularProgressIndicator(
-                                                  color: Colors.white,
-                                                  strokeWidth: 2,
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: <Widget>[
+                                          _label('Full Name *'),
+                                          const SizedBox(height: 8),
+                                          _field(
+                                            controller: _nameController,
+                                            hint: 'Enter Your full name',
+                                            icon: Icons.person_outline,
+                                            onChanged: (_) => setState(() {}),
+                                          ),
+                                          const SizedBox(height: 14),
+                                          _label('Gender'),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            children: <Widget>[
+                                              SizedBox(
+                                                width: 106,
+                                                child: _toggleChip(
+                                                  'Female',
+                                                  _gender == 'Female',
+                                                  () => setState(
+                                                    () => _gender = 'Female',
+                                                  ),
                                                 ),
-                                              )
-                                            : const Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                children: <Widget>[
-                                                  Text(
-                                                    'Continue to KYC Upload',
-                                                    style: TextStyle(
-                                                      fontSize: 15,
-                                                      color: Colors.white,
-                                                      fontWeight: FontWeight.w600,
-                                                    ),
-                                                  ),
-                                                  SizedBox(width: 8),
-                                                  Icon(
-                                                    Icons.arrow_forward,
-                                                    color: Colors.white,
-                                                    size: 18,
-                                                  ),
-                                                ],
                                               ),
+                                              const SizedBox(width: 10),
+                                              SizedBox(
+                                                width: 106,
+                                                child: _toggleChip(
+                                                  'Male',
+                                                  _gender == 'Male',
+                                                  () => setState(
+                                                    () => _gender = 'Male',
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 14),
+                                          _label('Phone Number *'),
+                                          const SizedBox(height: 8),
+                                          _field(
+                                            controller: _phoneController,
+                                            hint: '1234563215',
+                                            icon: Icons.phone_outlined,
+                                            keyboardType: TextInputType.phone,
+                                            readOnly:
+                                                onboarding.phone.isNotEmpty,
+                                            onChanged: (_) => setState(() {}),
+                                          ),
+                                          const SizedBox(height: 14),
+                                          _label('Address *'),
+                                          const SizedBox(height: 8),
+                                          _addressController.text.trim().isEmpty
+                                              ? SizedBox(
+                                                  width: double.infinity,
+                                                  height: 46,
+                                                  child: ElevatedButton(
+                                                    onPressed:
+                                                        _isCapturingLocation
+                                                        ? null
+                                                        : _openAddressMapPicker,
+                                                    style: ElevatedButton.styleFrom(
+                                                      backgroundColor: _navy,
+                                                      shape: RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              10,
+                                                            ),
+                                                      ),
+                                                      elevation: 0,
+                                                    ),
+                                                    child: _isCapturingLocation
+                                                        ? const SizedBox(
+                                                            width: 20,
+                                                            height: 20,
+                                                            child:
+                                                                CircularProgressIndicator(
+                                                                  color: Colors
+                                                                      .white,
+                                                                  strokeWidth:
+                                                                      2,
+                                                                ),
+                                                          )
+                                                        : const Text(
+                                                            'Add Address',
+                                                            style: TextStyle(
+                                                              color:
+                                                                  Colors.white,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                              fontSize: 18,
+                                                            ),
+                                                          ),
+                                                  ),
+                                                )
+                                              : _addressPreviewCard(),
+                                          if (services.isNotEmpty) ...[
+                                            const SizedBox(height: 20),
+                                            _label(
+                                              'Choose Service You Provide *',
+                                            ),
+                                            const SizedBox(height: 10),
+                                            ...List.generate(
+                                              (services.length / 2).ceil(),
+                                              (rowIdx) {
+                                                final left =
+                                                    services[rowIdx * 2];
+                                                final rightIdx = rowIdx * 2 + 1;
+                                                final right =
+                                                    rightIdx < services.length
+                                                    ? services[rightIdx]
+                                                    : null;
+                                                return Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        bottom: 8,
+                                                      ),
+                                                  child: Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: _serviceChip(
+                                                          left,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      right != null
+                                                          ? Expanded(
+                                                              child:
+                                                                  _serviceChip(
+                                                                    right,
+                                                                  ),
+                                                            )
+                                                          : const Expanded(
+                                                              child: SizedBox(),
+                                                            ),
+                                                    ],
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ],
+                                          const SizedBox(height: 18),
+                                          _label(
+                                            'Do you have previous experience? *',
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            children: <Widget>[
+                                              Expanded(
+                                                child: _toggleChip(
+                                                  'Yes',
+                                                  _experience == 'Yes',
+                                                  () => setState(() {
+                                                    _experience = 'Yes';
+                                                  }),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: _toggleChip(
+                                                  'No',
+                                                  _experience == 'No',
+                                                  () => setState(() {
+                                                    _experience = 'No';
+                                                    _yearsOfExperience = null;
+                                                  }),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 14),
+                                          _label(
+                                            'How much year of experience do you have ? *',
+                                          ),
+                                          const SizedBox(height: 8),
+                                          _experienceDropdown(),
+                                        ],
                                       ),
                                     ),
-                                  ),
-                                ],
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 12),
+                                      child: SizedBox(
+                                        width: double.infinity,
+                                        height: 52,
+                                        child: ElevatedButton(
+                                          onPressed:
+                                              (_isSubmitting || !_isFormReady)
+                                              ? null
+                                              : _submitProfile,
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: _isFormReady
+                                                ? _navy
+                                                : const Color(0xFF8492A0),
+                                            disabledBackgroundColor:
+                                                const Color(0xFF8492A0),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            elevation: 0,
+                                          ),
+                                          child: _isSubmitting
+                                              ? const SizedBox(
+                                                  width: 24,
+                                                  height: 24,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        color: Colors.white,
+                                                        strokeWidth: 2,
+                                                      ),
+                                                )
+                                              : const Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: <Widget>[
+                                                    Text(
+                                                      'Continue to KYC Upload',
+                                                      style: TextStyle(
+                                                        fontSize: 15,
+                                                        color: Colors.white,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                    SizedBox(width: 8),
+                                                    Icon(
+                                                      Icons.arrow_forward,
+                                                      color: Colors.white,
+                                                      size: 18,
+                                                    ),
+                                                  ],
+                                                ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          );
-                        },
-                      ),
+                            );
+                          },
+                        ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
     );
   }
 }

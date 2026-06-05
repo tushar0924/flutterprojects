@@ -138,6 +138,8 @@ class PartnerOnboardingState {
     this.selfieUploaded = false,
     this.panUploaded = false,
     this.panVerified = false,
+    this.aadhaarUploaded = false,
+    this.additionalIdentityUploaded = false,
     this.policeUploaded = false,
     this.panVerificationStatus = '',
     this.fullName = '',
@@ -163,6 +165,8 @@ class PartnerOnboardingState {
   final bool selfieUploaded;
   final bool panUploaded;
   final bool panVerified;
+  final bool aadhaarUploaded;
+  final bool additionalIdentityUploaded;
   final bool policeUploaded;
   final String panVerificationStatus;
   final String fullName;
@@ -198,7 +202,8 @@ class PartnerOnboardingState {
     bankCompleted: bankCompleted,
   );
 
-  bool get isKycReadyForNext => selfieUploaded && panVerified && policeUploaded;
+  bool get isKycReadyForNext =>
+      selfieUploaded && aadhaarUploaded && additionalIdentityUploaded;
 
   PartnerOnboardingState copyWith({
     bool? isBootstrapping,
@@ -212,6 +217,8 @@ class PartnerOnboardingState {
     bool? selfieUploaded,
     bool? panUploaded,
     bool? panVerified,
+    bool? aadhaarUploaded,
+    bool? additionalIdentityUploaded,
     bool? policeUploaded,
     String? panVerificationStatus,
     String? fullName,
@@ -237,6 +244,9 @@ class PartnerOnboardingState {
       selfieUploaded: selfieUploaded ?? this.selfieUploaded,
       panUploaded: panUploaded ?? this.panUploaded,
       panVerified: panVerified ?? this.panVerified,
+      aadhaarUploaded: aadhaarUploaded ?? this.aadhaarUploaded,
+      additionalIdentityUploaded:
+          additionalIdentityUploaded ?? this.additionalIdentityUploaded,
       policeUploaded: policeUploaded ?? this.policeUploaded,
       panVerificationStatus:
           panVerificationStatus ?? this.panVerificationStatus,
@@ -290,6 +300,7 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
 
   Future<void> bootstrapFromChooseRole() async {
     if (state.isBootstrapping) return;
+    if (!mounted) return;
     state = state.copyWith(isBootstrapping: true, errorMessage: '');
 
     try {
@@ -298,10 +309,14 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
         _safeGetServices(),
       ]);
 
+      if (!mounted) return;
+
       final statusPayload = results[0];
       final servicesPayload = results[1];
 
       _mergeStatusPayload(statusPayload);
+
+      if (!mounted) return;
 
       final serviceNames = _extractServices(servicesPayload);
       final statusData = statusPayload['data'];
@@ -309,6 +324,8 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
       final fullNameFromStatus = statusUser is Map
           ? (statusUser['fullName'] as String? ?? '').trim()
           : '';
+
+      if (!mounted) return;
 
       state = state.copyWith(
         availableServices: serviceNames.isNotEmpty
@@ -319,7 +336,9 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
             : state.fullName,
       );
     } finally {
-      state = state.copyWith(isBootstrapping: false, hasLoaded: true);
+      if (mounted) {
+        state = state.copyWith(isBootstrapping: false, hasLoaded: true);
+      }
     }
   }
 
@@ -330,6 +349,7 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
     String pinCode = '',
     required String serviceArea,
     required bool hasExperience,
+    int? experienceYears,
     required List<int> serviceIds,
     String gender = '',
     List<String> workTypes = const [],
@@ -345,6 +365,7 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
         pinCode: pinCode,
         serviceArea: serviceArea,
         hasExperience: hasExperience,
+        experienceYears: experienceYears,
         serviceIds: serviceIds,
         gender: gender,
         workTypes: workTypes,
@@ -393,6 +414,22 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
   void prepareForPoliceUpload() {
     state = state.copyWith(
       policeUploaded: false,
+      kycCompleted: false,
+      errorMessage: '',
+    );
+  }
+
+  void prepareForAadhaarUpload() {
+    state = state.copyWith(
+      aadhaarUploaded: false,
+      kycCompleted: false,
+      errorMessage: '',
+    );
+  }
+
+  void prepareForAdditionalIdentityUpload() {
+    state = state.copyWith(
+      additionalIdentityUploaded: false,
       kycCompleted: false,
       errorMessage: '',
     );
@@ -452,7 +489,33 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
       final success = res['success'] == true;
       state = state.copyWith(
         isSubmitting: false,
-        policeUploaded: success,
+        aadhaarUploaded: success,
+        errorMessage: success ? '' : _messageFromPayload(res),
+      );
+      return res;
+    } catch (e) {
+      final message = e.toString();
+      state = state.copyWith(isSubmitting: false, errorMessage: message);
+      return <String, dynamic>{'success': false, 'message': message};
+    }
+  }
+
+  Future<Map<String, dynamic>> uploadAdditionalIdentityDocument({
+    required String documentType,
+    required String fullName,
+    required File file,
+  }) async {
+    state = state.copyWith(isSubmitting: true, errorMessage: '');
+    try {
+      final res = await _partnerRepository.uploadAdditionalIdentityDocument(
+        documentType: documentType,
+        fullName: fullName,
+        file: file,
+      );
+      final success = res['success'] == true;
+      state = state.copyWith(
+        isSubmitting: false,
+        additionalIdentityUploaded: success,
         kycCompleted: success || state.kycCompleted,
         status: success ? 'PENDING_BANK' : state.status,
         errorMessage: success ? '' : _messageFromPayload(res),
@@ -634,8 +697,8 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
         ? Map<String, dynamic>.from(helper)
         : const <String, dynamic>{};
     final helperProfile = helperMap['profile'] is Map
-      ? Map<String, dynamic>.from(helperMap['profile'] as Map)
-      : const <String, dynamic>{};
+        ? Map<String, dynamic>.from(helperMap['profile'] as Map)
+        : const <String, dynamic>{};
     final dashboardStatus = _firstNonEmptyString(<dynamic>[
       helperMap['onboardingStatus'],
       dashboard['onboardingStatus'],
@@ -661,6 +724,10 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
       selfieUploaded: isReviewStage ? true : state.selfieUploaded,
       panUploaded: isReviewStage ? true : state.panUploaded,
       panVerified: isReviewStage ? true : state.panVerified,
+      aadhaarUploaded: isReviewStage ? true : state.aadhaarUploaded,
+      additionalIdentityUploaded: isReviewStage
+          ? true
+          : state.additionalIdentityUploaded,
       policeUploaded: isReviewStage ? true : state.policeUploaded,
       panVerificationStatus: isReviewStage
           ? (state.panVerificationStatus.isNotEmpty
@@ -692,21 +759,23 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
     // Profile complete: profile object exists and has an address
     final profileBag = helper['profile'];
     final helperProfile = profileBag is Map
-      ? Map<String, dynamic>.from(profileBag)
-      : const <String, dynamic>{};
+        ? Map<String, dynamic>.from(profileBag)
+        : const <String, dynamic>{};
     final newProfileCompleted =
         profileBag is Map && profileBag['address'] != null;
 
     // KYC complete: all three document URLs present
     final kycBag = helper['kyc'];
-    final newKycCompleted = kycBag is Map &&
+    final newKycCompleted =
+        kycBag is Map &&
         kycBag['selfieUrl'] != null &&
         kycBag['panUrl'] != null &&
         kycBag['policeUrl'] != null;
 
     // Bank complete: account number and IFSC present
     final bankBag = helper['bank'];
-    final newBankCompleted = bankBag is Map &&
+    final newBankCompleted =
+        bankBag is Map &&
         bankBag['accountNumber'] != null &&
         bankBag['ifsc'] != null;
 
@@ -763,18 +832,21 @@ class PartnerOnboardingNotifier extends StateNotifier<PartnerOnboardingState> {
       selfieUploaded: backendKycCompleted || state.selfieUploaded,
       panUploaded: backendKycCompleted || state.panUploaded,
       panVerified: backendKycCompleted || state.panVerified,
+      aadhaarUploaded: backendKycCompleted || state.aadhaarUploaded,
+      additionalIdentityUploaded:
+          backendKycCompleted || state.additionalIdentityUploaded,
       policeUploaded: backendKycCompleted || state.policeUploaded,
       panVerificationStatus: backendKycCompleted
           ? 'VERIFIED'
           : state.panVerificationStatus,
-        fullName: fullName.isNotEmpty ? fullName : state.fullName,
+      fullName: fullName.isNotEmpty ? fullName : state.fullName,
       helperId: helperId.isNotEmpty ? helperId : state.helperId,
       requestId: requestId.isNotEmpty ? requestId : state.requestId,
       rejectionReason: rejectionReason.isNotEmpty
           ? rejectionReason
           : state.rejectionReason,
       submittedAt: submittedAt,
-        backendCurrentStep: backendCurrentStep,
+      backendCurrentStep: backendCurrentStep,
       errorMessage: payload['success'] == false
           ? _messageFromPayload(payload)
           : '',
