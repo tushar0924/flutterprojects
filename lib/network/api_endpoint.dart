@@ -44,7 +44,7 @@ class PartnerApiEndpoint {
   static const String profile = 'partner/profile';
   static const String address = 'partner/address';
   static const String reviews = 'partner/reviews';
-  static const String categories = 'categories';
+  static const String categories = 'partner/categories';
   // Backward-compatible alias for older call sites.
   static const String services = categories;
 
@@ -73,6 +73,6 @@ class ServicesApiEndpoint {
 }
 
 class UserApiEndpoint {
-  static const String profile = 'user/profile';
+  static const String profile = 'partner/profile';
   static const String registerHelper = 'user/register-helper';
 }

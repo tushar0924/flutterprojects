@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../models/user_profile_model.dart';
 import '../../../../models/upcoming_job_model.dart';
 import '../../../../providers/partner_provider.dart';
+import '../../../../providers/categories_provider.dart';
 import '../../../utils/toast_helper.dart';
 import '../job_details_screen.dart';
 import '../job_workflow_navigation.dart';
@@ -50,6 +51,9 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
     final partnerRepo = ref.read(partnerRepositoryProvider);
     final userRepo = ref.read(userRepositoryProvider);
     try {
+      // Pre-load categories for the Jobs tab service-type filter in parallel.
+      final categoriesFuture = partnerRepo.getManageServices();
+
       final profile = await userRepo.getProfileModel();
       if (profile != null && mounted) {
         setState(() => _userProfile = profile);
@@ -78,6 +82,14 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
               ? upcomingRes.totalUpcomingJobs
               : 0;
         });
+      }
+
+      // Resolve & cache the categories so the Jobs tab dropdown is ready.
+      final categoriesRes = await categoriesFuture;
+      if (categoriesRes.success && mounted) {
+        ref
+            .read(selectedCategoriesProvider.notifier)
+            .setCategories(categoriesRes.categories);
       }
     } catch (_) {}
     if (mounted) setState(() => _isLoading = false);
