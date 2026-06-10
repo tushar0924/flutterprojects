@@ -260,10 +260,11 @@ class _OnboardingStep3State extends ConsumerState<OnboardingStep3> {
         onboarding.isSubmitting;
     final isBusy = _isInitialLoading || onboarding.isBootstrapping;
 
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
         await _showBackDialog();
-        return false;
       },
       child: Scaffold(
         backgroundColor: const Color(0xFF0B2842),

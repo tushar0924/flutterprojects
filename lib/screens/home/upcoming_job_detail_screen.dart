@@ -319,8 +319,8 @@ class _UpcomingJobDetailScreenState
               Row(
                 children: [
                   Text(
-                    (job.duration?.trim().isNotEmpty ?? false)
-                        ? job.duration!
+                    job.duration.trim().isNotEmpty
+                        ? job.duration
                         : "-",
                     style: const TextStyle(
                       color: Color(0xFF101828),

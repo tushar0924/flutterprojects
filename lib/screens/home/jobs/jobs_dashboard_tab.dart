@@ -24,7 +24,7 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
   bool _isLoadingMore = false;
   String? _jobsApiMessage;
   int _totalUpcomingJobs = 0;
-  int _todayJobsCount = 0;
+  final int _todayJobsCount = 0;
   int _currentPage = 1;
   int _totalPages = 1;
   late ScrollController _scrollController;
@@ -607,7 +607,7 @@ class _ServiceTypeFilterDropdownState
                       return ListView.builder(
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         itemCount: 4,
-                        itemBuilder: (_, __) => _SkeletonRow(controller: _shimmerController),
+                        itemBuilder: (_, _) => _SkeletonRow(controller: _shimmerController),
                       );
                     }
 

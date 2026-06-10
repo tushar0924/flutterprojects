@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 
-import '../models/booking_alert_model.dart';
 import '../models/helper_bank_model.dart';
 import '../models/helper_earnings_history_model.dart';
 import '../models/helper_earnings_transaction_model.dart';
@@ -137,7 +136,6 @@ class PartnerRepository {
     if (latitude != null) payload['latitude'] = latitude;
     if (longitude != null) payload['longitude'] = longitude;
 
-    print('[submitOnboardingProfile] REQUEST payload: $payload');
 
     try {
       final res = await _client.post(
@@ -145,14 +143,8 @@ class PartnerRepository {
         data: payload,
       );
       final responseData = (res.data as Map<String, dynamic>?) ?? {};
-      print(
-        '[submitOnboardingProfile] RESPONSE (${res.statusCode}): $responseData',
-      );
       return responseData;
     } on DioException catch (e) {
-      print(
-        '[submitOnboardingProfile] ERROR (${e.response?.statusCode}): ${e.response?.data}',
-      );
       return <String, dynamic>{
         'success': false,
         'message': _extractErrorMessage(
@@ -569,7 +561,7 @@ class PartnerRepository {
       final res = await _client.get(PartnerApiEndpoint.categories);
       final responseData = (res.data as Map<String, dynamic>?) ?? {};
       return ManageServicesApiResponse.fromJson(responseData);
-    } on DioException catch (e) {
+    } on DioException catch (_) {
       return ManageServicesApiResponse(success: false, categories: const []);
     }
   }

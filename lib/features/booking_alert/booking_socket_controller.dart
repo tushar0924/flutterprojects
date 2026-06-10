@@ -429,9 +429,6 @@ final bookingRequestActionsRepositoryProvider =
     });
 
 final bookingSocketProvider =
-    StateNotifierProvider.autoDispose<
-      BookingSocketNotifier,
-      BookingSocketState
-    >((ref) {
+    StateNotifierProvider<BookingSocketNotifier, BookingSocketState>((ref) {
       return BookingSocketNotifier(ref);
     });

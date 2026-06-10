@@ -10,7 +10,7 @@ import 'utils/navigator_service.dart' as nav;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  GoogleFonts.config.allowRuntimeFetching = true;
+  GoogleFonts.config.allowRuntimeFetching = false;
   await SessionManager().initialize();
   runApp(const ProviderScope(child: MyApp()));
 }
@@ -22,7 +22,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Helperr4U - Demo',
+      title: 'BookUS Partner',
       navigatorKey: nav.navigatorKey,
       theme: AppTheme.light().copyWith(
         pageTransitionsTheme: const PageTransitionsTheme(

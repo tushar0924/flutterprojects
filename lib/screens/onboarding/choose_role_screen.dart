@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/partner_onboarding_provider.dart';
-import '../../routes/app_router.dart';
 import '../../utils/toast_helper.dart';
 
 class ChooseRoleScreen extends ConsumerStatefulWidget {
@@ -50,8 +49,13 @@ class _ChooseRoleScreenState extends ConsumerState<ChooseRoleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _onWillPop,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final shouldPop = await _onWillPop();
+        if (shouldPop && mounted) Navigator.of(context).pop();
+      },
       child: Scaffold(
         backgroundColor: const Color(0xFF1A2740),
         body: SafeArea(

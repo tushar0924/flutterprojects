@@ -37,8 +37,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -264,7 +262,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: _isPhoneValid
                                 ? const Color(0xFF0F2A47)
-                                : const Color(0xFF0F2A47).withOpacity(0.5),
+                                : const Color(0xFF0F2A47).withValues(alpha: 0.5),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
@@ -286,7 +284,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   style: TextStyle(
                                     color: _isPhoneValid
                                         ? Colors.white
-                                        : Colors.white.withOpacity(0.5),
+                                        : Colors.white.withValues(alpha: 0.5),
                                     fontSize: 16,
                                     fontWeight: FontWeight.w500,
                                   ),

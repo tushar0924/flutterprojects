@@ -172,8 +172,14 @@ class _HelperrHomeState extends ConsumerState<HelperrHome> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _onWillPop,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final navigator = Navigator.of(context);
+        final shouldPop = await _onWillPop();
+        if (shouldPop && mounted) navigator.pop();
+      },
       child: Scaffold(
         key: _scaffoldKey,
         backgroundColor: const Color(0xFFF3F5F8),

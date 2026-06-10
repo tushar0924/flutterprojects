@@ -1,6 +1,8 @@
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import '../models/booking_details_model.dart';
 import '../network/api_client.dart';
@@ -94,14 +96,48 @@ class BookingDetailsRepository {
     }
   }
 
+  /// Compresses [photo] to ≤80% quality and ≤1920 px on the long side.
+  /// Returns the compressed [XFile], or the original if compression fails.
+  Future<XFile> _compressPhoto(XFile photo) async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final ext = p.extension(photo.name).toLowerCase();
+      final outPath = p.join(
+        tempDir.path,
+        'compressed_${DateTime.now().millisecondsSinceEpoch}${ext.isEmpty ? '.jpg' : ext}',
+      );
+
+      final CompressFormat format =
+          ext == '.png' ? CompressFormat.png : CompressFormat.jpeg;
+
+      final XFile? result = await FlutterImageCompress.compressAndGetFile(
+        photo.path,
+        outPath,
+        quality: 80,
+        minWidth: 1920,
+        minHeight: 1920,
+        format: format,
+      );
+
+      return result ?? photo;
+    } catch (_) {
+      // If compression fails for any reason, fall back to the original file.
+      return photo;
+    }
+  }
+
   Future<bool> uploadBeforePhotos(int bookingId, List<XFile> photos) async {
     try {
       final formData = FormData();
       for (final photo in photos) {
+        final compressed = await _compressPhoto(photo);
         formData.files.add(
           MapEntry(
             'photos',
-            await MultipartFile.fromFile(photo.path, filename: photo.name),
+            await MultipartFile.fromFile(
+              compressed.path,
+              filename: p.basename(compressed.path),
+            ),
           ),
         );
       }
@@ -133,10 +169,14 @@ class BookingDetailsRepository {
     try {
       final formData = FormData();
       for (final photo in photos) {
+        final compressed = await _compressPhoto(photo);
         formData.files.add(
           MapEntry(
             'photos',
-            await MultipartFile.fromFile(photo.path, filename: photo.name),
+            await MultipartFile.fromFile(
+              compressed.path,
+              filename: p.basename(compressed.path),
+            ),
           ),
         );
       }

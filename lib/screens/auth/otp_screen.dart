@@ -352,7 +352,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                                       size: 18,
                                       color: _isOtpComplete
                                           ? Colors.white
-                                          : Colors.white.withOpacity(0.5),
+                                          : Colors.white.withValues(alpha: 0.5),
                                     ),
                                     label: authState.isLoading
                                         ? const SizedBox(
@@ -374,14 +374,14 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                                               color: _isOtpComplete
                                                   ? Colors.white
                                                   : Colors.white
-                                                      .withOpacity(0.5),
+                                                      .withValues(alpha: 0.5),
                                             ),
                                           ),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: _isOtpComplete
                                           ? const Color(0xFF0F2A47)
                                           : const Color(0xFF0F2A47)
-                                              .withOpacity(0.5),
+                                              .withValues(alpha: 0.5),
                                       elevation: 0,
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(12),

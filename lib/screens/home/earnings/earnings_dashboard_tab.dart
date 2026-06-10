@@ -22,7 +22,6 @@ class _EarningsDashboardTabState extends ConsumerState<EarningsDashboardTab> {
   Map<String, dynamic>? _dashboardData;
   HelperEarningsHistoryResponse? _historyResponse;
   HelperBankAccount? _bankAccount;
-  bool _isLoading = true;
   bool _isBalanceHidden = true;
   bool _isBankLoading = false;
   bool _showBankDetails = false;
@@ -54,7 +53,7 @@ class _EarningsDashboardTabState extends ConsumerState<EarningsDashboardTab> {
   Future<void> _loadEarnings() async {
     final isInitialLoad = _dashboardData == null;
     if (isInitialLoad) {
-      setState(() => _isLoading = true);
+      // Mark as loading while first fetch runs — build gate is _dashboardData == null
     }
     try {
       final repo = ref.read(partnerRepositoryProvider);
@@ -70,11 +69,10 @@ class _EarningsDashboardTabState extends ConsumerState<EarningsDashboardTab> {
         setState(() {
           _dashboardData = dashboardRes['data'] as Map<String, dynamic>?;
           _historyResponse = historyRes;
-          _isLoading = false;
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() {});
     }
   }
 

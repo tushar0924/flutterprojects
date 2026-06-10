@@ -130,10 +130,11 @@ class _OnboardingStep4State extends ConsumerState<OnboardingStep4> {
           r'^[A-Z]{4}0[A-Z0-9]{6}$',
         ).hasMatch(_ifscController.text.trim().toUpperCase());
 
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
         await _showBackDialog();
-        return false;
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFF3F4F6),

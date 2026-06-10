@@ -961,10 +961,11 @@ class _OnboardingStep2State extends ConsumerState<OnboardingStep2> {
     // without re-rendering the entire page.
     final busy = _isInitialLoading || onboarding.isBootstrapping;
 
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
         await _showBackDialog();
-        return false;
       },
       child: Scaffold(
         backgroundColor: _surface,

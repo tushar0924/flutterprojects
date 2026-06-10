@@ -85,7 +85,7 @@ class _LanguageScreenState extends State<LanguageScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 4),
                         itemCount: _languages.length,
-                        separatorBuilder: (_, __) =>
+                        separatorBuilder: (_, _) =>
                         const SizedBox(height: 10),
                         itemBuilder: (context, index) {
                           final lang = _languages[index];
@@ -109,7 +109,7 @@ class _LanguageScreenState extends State<LanguageScreen> {
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.04),
+                                    color: Colors.black.withValues(alpha: 0.04),
                                     blurRadius: 4,
                                     offset: const Offset(0, 2),
                                   ),

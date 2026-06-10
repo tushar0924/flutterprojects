@@ -70,7 +70,7 @@ class OfflineScreen extends StatelessWidget {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1F1F1F), // Darker for a premium look
                     foregroundColor: Colors.white,
-                    disabledBackgroundColor: const Color(0xFF1F1F1F).withOpacity(0.6),
+                    disabledBackgroundColor: const Color(0xFF1F1F1F).withValues(alpha: 0.6),
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),

@@ -17,8 +17,8 @@ Future<bool?> showJobCompletedPopup(
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setState) {
-          return WillPopScope(
-            onWillPop: () async => !isCompleting,
+          return PopScope(
+            canPop: !isCompleting,
             child: Dialog(
               // Makes the popup wider to match the screenshot
               insetPadding: const EdgeInsets.symmetric(horizontal: 24),
@@ -361,7 +361,7 @@ class _RateExperienceDialogState extends ConsumerState<_RateExperienceDialog> {
                         });
                         if (success) {
                           AppToast.showSuccess('Feedback submitted successfully');
-                          Navigator.of(context).pop();
+                          if (mounted) Navigator.of(context).pop();
                         }
                       }
                     : null,

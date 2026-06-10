@@ -213,7 +213,7 @@ class _MyReviewsScreenState extends ConsumerState<MyReviewsScreen> {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: _filters.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final filter = _filters[index];
           final selected = filter == _selectedFilter;

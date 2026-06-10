@@ -27,7 +27,7 @@ class ApiClient {
 
   bool _isSuccessPayload(dynamic data, int? statusCode) {
     if (data is Map) {
-      final map = Map<String, dynamic>.from(data as Map);
+      final map = Map<String, dynamic>.from(data);
       final success = map['success'];
       if (success is bool) return success;
     }
