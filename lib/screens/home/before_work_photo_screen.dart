@@ -83,32 +83,9 @@ class _BeforeWorkPhotoScreenState extends State<BeforeWorkPhotoScreen> {
     }
 
     if (Platform.isAndroid) {
-      try {
-        final statuses = await <Permission>[
-          Permission.photos,
-          Permission.storage,
-        ].request();
-        final photos = statuses[Permission.photos];
-        final storage = statuses[Permission.storage];
-        final granted =
-            (photos?.isGranted ?? false) ||
-            (photos?.isLimited ?? false) ||
-            (storage?.isGranted ?? false);
-        if (granted) return true;
-
-        final permanentlyDenied =
-            (photos?.isPermanentlyDenied ?? false) ||
-            (storage?.isPermanentlyDenied ?? false);
-        return _handlePermissionDenied(
-          permanentlyDenied
-              ? PermissionStatus.permanentlyDenied
-              : PermissionStatus.denied,
-          'gallery',
-        );
-      } catch (e) {
-        AppToast.showError('Gallery permission error. Open settings.');
-        return false;
-      }
+      // Android 13+ uses the Photo Picker, and older versions do not require permissions
+      // to pick images using the system gallery via image_picker.
+      return true;
     }
 
     try {
