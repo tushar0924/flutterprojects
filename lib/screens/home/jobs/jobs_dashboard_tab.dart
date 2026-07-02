@@ -7,6 +7,8 @@ import '../../../providers/categories_provider.dart';
 import '../../../providers/partner_provider.dart';
 
 import '../job_details_screen.dart';
+import '../upcoming_job_detail_screen.dart';
+import '../job_workflow_navigation.dart';
 import 'jobs_data.dart';
 
 class JobsDashboardTab extends ConsumerStatefulWidget {
@@ -61,33 +63,43 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
       _apiJobs = [];
     });
 
-    final repo = ref.read(partnerRepositoryProvider);
-    final res = await repo.getUpcomingBookings(
-      page: 1,
-      limit: _pageLimit,
-      day: _dayParam(),
-      serviceType: _serviceTypeParam(),
-    );
-    if (!mounted) return;
+    try {
+      final repo = ref.read(partnerRepositoryProvider);
+      final res = await repo.getUpcomingBookings(
+        page: 1,
+        limit: _pageLimit,
+        day: _dayParam(),
+        serviceType: _serviceTypeParam(),
+      );
+      if (!mounted) return;
 
-    final success = res.success;
-    if (success) {
+      final success = res.success;
+      if (success) {
+        setState(() {
+          _apiJobs = res.jobs;
+          _totalUpcomingJobs = res.pagination.total;
+          _currentPage = res.pagination.page;
+          _totalPages = res.pagination.totalPages;
+          _isLoading = false;
+        });
+        return;
+      }
+
       setState(() {
-        _apiJobs = res.jobs;
-        _totalUpcomingJobs = res.pagination.total;
-        _currentPage = res.pagination.page;
-        _totalPages = res.pagination.totalPages;
+        _apiJobs = [];
+        _totalUpcomingJobs = 0;
+        _jobsApiMessage = res.message;
         _isLoading = false;
       });
-      return;
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _apiJobs = [];
+        _totalUpcomingJobs = 0;
+        _jobsApiMessage = 'Failed to load jobs: $e';
+        _isLoading = false;
+      });
     }
-
-    setState(() {
-      _apiJobs = [];
-      _totalUpcomingJobs = 0;
-      _jobsApiMessage = res.message;
-      _isLoading = false;
-    });
   }
 
   Future<void> _loadMoreJobs() async {
@@ -125,12 +137,14 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
 
   String? _dayParam() {
     switch (_selectedDay) {
+      case 'ALL':
+        return null;
       case 'Today':
         return 'today';
       case 'Tomorrow':
         return 'tomorrow';
-      case 'This Week':
-        return 'week';
+      case 'Upcoming':
+        return 'upcoming';
       default:
         return null;
     }
@@ -275,19 +289,38 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
                                 ),
                               ],
                               const SizedBox(height: 12),
-                              if (_jobs.isEmpty && !_isLoading)
-                                const Padding(
-                                  padding: EdgeInsets.only(top: 24),
-                                  child: Center(
-                                    child: Text(
-                                      'No upcoming jobs found',
-                                      style: TextStyle(
-                                        color: Color(0xFF667085),
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ),
-                                )
+                              if (_isLoading)
+                                 const Padding(
+                                   padding: EdgeInsets.only(top: 40),
+                                   child: Center(
+                                     child: CircularProgressIndicator(),
+                                   ),
+                                 )
+                              else if (_jobs.isEmpty)
+                                 const Padding(
+                                   padding: EdgeInsets.only(top: 40),
+                                   child: Center(
+                                     child: Column(
+                                       mainAxisAlignment: MainAxisAlignment.center,
+                                       children: [
+                                         Icon(
+                                           Icons.inbox_outlined,
+                                           size: 48,
+                                           color: Color(0xFF98A2B3),
+                                         ),
+                                         SizedBox(height: 12),
+                                         Text(
+                                           'No Data Found',
+                                           style: TextStyle(
+                                             color: Color(0xFF667085),
+                                             fontSize: 16,
+                                             fontWeight: FontWeight.w500,
+                                           ),
+                                         ),
+                                       ],
+                                     ),
+                                   ),
+                                 )
                               else
                                 ListView.separated(
                                   itemCount: _jobs.length,
@@ -305,13 +338,34 @@ class _JobsDashboardTabState extends ConsumerState<JobsDashboardTab> {
                                       child: _JobCard(
                                         job: job,
                                         onViewDetails: () {
-                                          Navigator.of(context).push(
-                                            MaterialPageRoute(
-                                              builder: (_) => JobDetailsScreen(
+                                          final status = (job.status).toUpperCase();
+                                          if (status == 'IN_PROGRESS') {
+                                            if (job.workflowState.trim().isEmpty) {
+                                              Navigator.of(context).push(
+                                                MaterialPageRoute(
+                                                  builder: (_) => JobDetailsScreen(
+                                                    bookingId: job.id,
+                                                  ),
+                                                ),
+                                              );
+                                            } else {
+                                              openJobWorkflowStep(
+                                                context,
                                                 bookingId: job.id,
+                                                status: job.status,
+                                                workflowState: job.workflowState,
+                                                customerName: job.customerName,
+                                              );
+                                            }
+                                          } else {
+                                            Navigator.of(context).push(
+                                              MaterialPageRoute(
+                                                builder: (_) => UpcomingJobDetailScreen(
+                                                  jobId: job.id,
+                                                ),
                                               ),
-                                            ),
-                                          );
+                                            );
+                                          }
                                         },
                                       ),
                                     );
@@ -814,154 +868,156 @@ class _JobCard extends StatelessWidget {
         ? const Color(0xFFEF4444)
         : const Color(0xFFF97316);
 
-    return Container(
+    final cardContent = Container(
       padding: const EdgeInsets.fromLTRB(14, 18, 14, 14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: borderColor),
       ),
-      child: Stack(
-        clipBehavior: Clip.none,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Positioned(
-            top: -24,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                decoration: BoxDecoration(
-                  color: borderColor,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  statusText,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
+          Row(
+            children: [
+              const CircleAvatar(
+                radius: 17,
+                backgroundColor: Color(0xFF0B2545),
+                child: Icon(
+                  Icons.person_outline,
+                  color: Colors.white,
+                  size: 19,
                 ),
               ),
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const CircleAvatar(
-                    radius: 17,
-                    backgroundColor: Color(0xFF0B2545),
-                    child: Icon(
-                      Icons.person_outline,
-                      color: Colors.white,
-                      size: 19,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          job.customerName,
-                          style: const TextStyle(
-                            color: Color(0xFF101828),
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.star,
-                              size: 12,
-                              color: Color(0xFFFDB022),
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              job.displayRating,
-                              style: const TextStyle(
-                                color: Color(0xFF475467),
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0B2545),
-                      borderRadius: BorderRadius.circular(9),
-                    ),
-                    child: Text(
-                      job.serviceName,
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      job.customerName,
                       style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11.5,
+                        color: Color(0xFF101828),
+                        fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.star,
+                          size: 12,
+                          color: Color(0xFFFDB022),
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          job.displayRating,
+                          style: const TextStyle(
+                            color: Color(0xFF475467),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0B2545),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Text(
+                  job.serviceName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500,
                   ),
-                ],
+                ),
               ),
-              const SizedBox(height: 10),
-              _DetailRow(
-                icon: Icons.calendar_today_outlined,
-                value: job.displaySchedule,
+            ],
+          ),
+          const SizedBox(height: 10),
+          _DetailRow(
+            icon: Icons.calendar_today_outlined,
+            value: job.displaySchedule,
+          ),
+          _DetailRow(
+            icon: Icons.access_time_outlined,
+            value: job.displayDuration,
+          ),
+          _DetailRow(icon: Icons.location_on_outlined, value: job.address),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                job.displayAmount,
+                style: const TextStyle(
+                  color: Color(0xFF111827),
+                  fontSize: 40,
+                  fontWeight: FontWeight.w600,
+                  height: 1.0,
+                ),
               ),
-              _DetailRow(
-                icon: Icons.access_time_outlined,
-                value: job.displayDuration,
-              ),
-              _DetailRow(icon: Icons.location_on_outlined, value: job.address),
-              const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    job.displayAmount,
-                    style: const TextStyle(
-                      color: Color(0xFF111827),
-                      fontSize: 40,
-                      fontWeight: FontWeight.w600,
-                      height: 1.0,
+              SizedBox(
+                height: 36,
+                child: OutlinedButton(
+                  onPressed: onViewDetails,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    side: const BorderSide(color: Color(0xFFD0D5DD)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(9),
                     ),
                   ),
-                  SizedBox(
-                    height: 36,
-                    child: OutlinedButton(
-                      onPressed: onViewDetails,
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        side: const BorderSide(color: Color(0xFFD0D5DD)),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(9),
-                        ),
-                      ),
-                      child: const Text(
-                        'View Details',
-                        style: TextStyle(
-                          color: Color(0xFF1D2939),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w400,
-                        ),
-                      ),
+                  child: const Text(
+                    'View Details',
+                    style: TextStyle(
+                      color: Color(0xFF1D2939),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w400,
                     ),
                   ),
-                ],
+                ),
               ),
             ],
           ),
         ],
       ),
+    );
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        cardContent,
+        Positioned(
+          top: -10,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              decoration: BoxDecoration(
+                color: borderColor,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                statusText,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

@@ -5,6 +5,8 @@ import 'package:dropdown_button2/dropdown_button2.dart';
 import '../../models/upcoming_job_model.dart';
 import '../../providers/partner_provider.dart';
 import 'job_details_screen.dart';
+import 'upcoming_job_detail_screen.dart';
+import 'job_workflow_navigation.dart';
 
 class UpcomingJobsScreen extends ConsumerStatefulWidget {
   const UpcomingJobsScreen({super.key});
@@ -29,7 +31,7 @@ class _UpcomingJobsScreenState extends ConsumerState<UpcomingJobsScreen> {
     'Driver',
   ];
 
-  static const List<String> _days = ['Day', 'Today', 'Tomorrow', 'This Week'];
+  static const List<String> _days = ['Day', 'ALL', 'Today', 'Tomorrow', 'Upcoming'];
 
   @override
   void initState() {
@@ -75,12 +77,14 @@ class _UpcomingJobsScreenState extends ConsumerState<UpcomingJobsScreen> {
 
   String? _dayParam() {
     switch (_selectedDay) {
+      case 'ALL':
+        return null;
       case 'Today':
         return 'today';
       case 'Tomorrow':
         return 'tomorrow';
-      case 'This Week':
-        return 'week';
+      case 'Upcoming':
+        return 'upcoming';
       default:
         return null;
     }
@@ -198,17 +202,33 @@ class _UpcomingJobsScreenState extends ConsumerState<UpcomingJobsScreen> {
                 ],
                 const SizedBox(height: 10),
                 Expanded(
-                  child: _jobs.isEmpty && !_isLoading
+                  child: _isLoading
                       ? const Center(
-                          child: Text(
-                            'No upcoming jobs found',
-                            style: TextStyle(
-                              color: Color(0xFF667085),
-                              fontSize: 13,
-                            ),
-                          ),
+                          child: CircularProgressIndicator(),
                         )
-                      : ListView.separated(
+                      : _jobs.isEmpty
+                          ? const Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.inbox_outlined,
+                                    size: 48,
+                                    color: Color(0xFF98A2B3),
+                                  ),
+                                  SizedBox(height: 12),
+                                  Text(
+                                    'No Data Found',
+                                    style: TextStyle(
+                                      color: Color(0xFF667085),
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListView.separated(
                           physics: const AlwaysScrollableScrollPhysics(),
                           itemCount: _jobs.length,
                           separatorBuilder: (_, index) =>
@@ -217,13 +237,34 @@ class _UpcomingJobsScreenState extends ConsumerState<UpcomingJobsScreen> {
                             job: _jobs[index],
                             onViewDetails: () {
                               final UpcomingJobModel selected = _jobs[index];
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => JobDetailsScreen(
+                              final status = (selected.status).toUpperCase();
+                              if (status == 'IN_PROGRESS') {
+                                if (selected.workflowState.trim().isEmpty) {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => JobDetailsScreen(
+                                        bookingId: selected.id,
+                                      ),
+                                    ),
+                                  );
+                                } else {
+                                  openJobWorkflowStep(
+                                    context,
                                     bookingId: selected.id,
+                                    status: selected.status,
+                                    workflowState: selected.workflowState,
+                                    customerName: selected.customerName,
+                                  );
+                                }
+                              } else {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => UpcomingJobDetailScreen(
+                                      jobId: selected.id,
+                                    ),
                                   ),
-                                ),
-                              );
+                                );
+                              }
                             },
                           ),
                         ),

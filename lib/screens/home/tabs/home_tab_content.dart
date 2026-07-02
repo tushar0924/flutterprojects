@@ -669,7 +669,7 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
             ),
           ),
           Positioned(
-            top: -18,
+            top: -14,
             left: 0,
             right: 0,
             child: Center(
@@ -1002,7 +1002,7 @@ class _HomeTabContentState extends ConsumerState<HomeTabContent> {
 
     return SizedBox(
       // Taller to accommodate the status badge that overflows the top
-      height: 240,
+      height: 212,
       child: ListView(
         scrollDirection: Axis.horizontal,
         clipBehavior: Clip.none,
@@ -1442,7 +1442,7 @@ class _UpcomingJobCard extends StatelessWidget {
         cardContent,
         // Status badge floats above the card border, centered at the top
         Positioned(
-          top: -14,
+          top: -12,
           left: 0,
           right: 0,
           child: Center(

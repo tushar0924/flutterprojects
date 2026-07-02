@@ -5,4 +5,4 @@ const List<String> kServiceTypeFilters = [
   'Driver',
 ];
 
-const List<String> kDayFilters = ['Day', 'Today', 'Tomorrow', 'This Week'];
+const List<String> kDayFilters = ['Day', 'ALL', 'Today', 'Tomorrow', 'Upcoming'];
